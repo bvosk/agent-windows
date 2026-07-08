@@ -1,0 +1,12 @@
+{
+  "platformOptions": {
+    "Coverlet": {
+      "exclude": "[coverlet.*]*,[xunit.*]*,[Microsoft.Testing.*]*,[Microsoft.Testplatform.*]*,[Microsoft.VisualStudio.TestPlatform.*]*,[MSTest*]*,[testhost*]*,[AgentWindows.Automation]*",
+      "excludeByAttribute": "ExcludeFromCodeCoverage,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute,AsyncStateMachineAttribute,IteratorStateMachineAttribute,Obsolete",
+      "excludeByFile": "**/obj/**/*.cs",
+      "format": "cobertura",
+      "includeTestAssembly": false,
+      "excludeAssembliesWithoutSources": "MissingAll"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="coverlet.MTP" />
+        <PackageReference Include="NetArchTest.Rules" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3.mtp-v2" />
+        <ProjectReference Include="../../src/AgentWindows.Automation/AgentWindows.Automation.csproj" />
+        <ProjectReference Include="../../src/AgentWindows.Cli/AgentWindows.Cli.csproj" />
+        <ProjectReference Include="../../src/AgentWindows.Core/AgentWindows.Core.csproj" />
+    </ItemGroup>
+</Project>

@@ -1,0 +1,73 @@
+[tools]
+dotnet = "10"
+
+[settings]
+quiet = true
+unix_default_file_shell_args = "bash"
+unix_default_inline_shell_args = "bash -c"
+windows_default_file_shell_args = "bash"
+windows_default_inline_shell_args = "bash -c"
+
+[tasks.setup]
+description = "Bootstrap repo (install tools, restore dotnet tools, install git hooks)"
+run = '''
+set -e
+mise install
+# Go through `mise exec` so this works on the very first run: the task's PATH is
+# resolved before `mise install` above has installed dotnet.
+echo "dotnet: $(mise exec -- dotnet --version)"
+mise exec -- dotnet tool restore
+mise exec -- dotnet husky install
+echo "Setup complete!"
+'''
+
+[tasks.build]
+description = "Build the solution (warnings are errors)"
+run = "dotnet build AgentWindows.slnx"
+
+[tasks.test]
+description = "Run all tests"
+run = "dotnet test AgentWindows.slnx"
+
+[tasks.coverage]
+description = "Run tests with coverage and generate an HTML report"
+run = '''
+set -e
+rm -rf artifacts/coverage-raw artifacts/coverage
+dotnet test AgentWindows.slnx -- --coverlet --results-directory ./artifacts/coverage-raw
+dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary"
+cat artifacts/coverage/Summary.txt
+'''
+
+[tasks.format]
+description = "Format all C# code with CSharpier"
+run = "dotnet csharpier format ."
+
+[tasks."format:check"]
+description = "Verify formatting without changing files"
+run = "dotnet csharpier check ."
+
+[tasks.lint]
+description = "Formatting check plus analyzer-enforced build"
+depends = ["format:check", "build"]
+
+[tasks.doctor]
+description = "Validate local toolchain for contributors and agents"
+run = '''
+set -e
+echo "mise: $(mise --version)"
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "dotnet is not installed via mise. Run: mise install"
+  exit 1
+fi
+echo "dotnet path: $(command -v dotnet)"
+echo "dotnet version: $(dotnet --version)"
+'''
+
+[tasks.publish]
+description = "Publish self-contained single-file exe and the dotnet tool package"
+run = '''
+set -e
+dotnet publish src/AgentWindows.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o artifacts/publish
+dotnet pack src/AgentWindows.Cli -c Release -o artifacts/package
+'''

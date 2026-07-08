@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <RootNamespace>AgentWindows.Automation</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FlaUI.UIA3" />
+        <ProjectReference Include="../AgentWindows.Core/AgentWindows.Core.csproj" />
+    </ItemGroup>
+</Project>

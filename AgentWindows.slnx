@@ -1,0 +1,12 @@
+<Solution>
+    <Folder Name="/src/">
+        <Project Path="src/AgentWindows.Core/AgentWindows.Core.csproj" />
+        <Project Path="src/AgentWindows.Automation/AgentWindows.Automation.csproj" />
+        <Project Path="src/AgentWindows.Cli/AgentWindows.Cli.csproj" />
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/AgentWindows.Core.Tests/AgentWindows.Core.Tests.csproj" />
+        <Project Path="tests/AgentWindows.Cli.Tests/AgentWindows.Cli.Tests.csproj" />
+        <Project Path="tests/AgentWindows.Architecture.Tests/AgentWindows.Architecture.Tests.csproj" />
+    </Folder>
+</Solution>

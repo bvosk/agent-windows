@@ -1,0 +1,6 @@
+M:System.Threading.Tasks.Task.ConfigureAwait(System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
+M:System.Threading.Tasks.Task`1.ConfigureAwait(System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
+M:System.Threading.Tasks.ValueTask.ConfigureAwait(System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
+M:System.Threading.Tasks.ValueTask`1.ConfigureAwait(System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
+M:System.Threading.Tasks.TaskAsyncEnumerableExtensions.ConfigureAwait``1(System.Collections.Generic.IAsyncEnumerable{``0},System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
+M:System.Threading.Tasks.TaskAsyncEnumerableExtensions.ConfigureAwait(System.IAsyncDisposable,System.Boolean); ConfigureAwait is banned: console apps have no SynchronizationContext, so this adds noise without benefit.
