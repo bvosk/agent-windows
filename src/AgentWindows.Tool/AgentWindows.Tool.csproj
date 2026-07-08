@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        dotnet-tool launcher shim. PackAsTool rejects windows TFMs (NETSDK1146) and
+        FlaUI requires net10.0-windows, so the tool package is this plain net10.0
+        launcher plus the CLI's framework-dependent publish output as payload.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>AgentWindows.Tool</RootNamespace>
+        <AssemblyName>agent-windows-launcher</AssemblyName>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>agent-windows</ToolCommandName>
+        <PackageId>AgentWindows</PackageId>
+        <Version>0.1.0</Version>
+        <Description>Windows-native UI automation CLI for AI agents, built on UI Automation (FlaUI).</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None
+            Include="$(MSBuildThisFileDirectory)../../artifacts/tool-payload/**"
+            Pack="true"
+            PackagePath="tools/net10.0/any/payload/"
+        />
+    </ItemGroup>
+
+    <Target Name="EnsureToolPayload" BeforeTargets="GenerateNuspec">
+        <Error
+            Condition="!Exists('$(MSBuildThisFileDirectory)../../artifacts/tool-payload/agent-windows.exe')"
+            Text="Tool payload missing at artifacts/tool-payload. Run 'mise run publish', which publishes the CLI before packing."
+        />
+    </Target>
+</Project>

@@ -68,6 +68,8 @@ echo "dotnet version: $(dotnet --version)"
 description = "Publish self-contained single-file exe and the dotnet tool package"
 run = '''
 set -e
+rm -rf artifacts/publish artifacts/tool-payload artifacts/package
 dotnet publish src/AgentWindows.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o artifacts/publish
-dotnet pack src/AgentWindows.Cli -c Release -o artifacts/package
+dotnet publish src/AgentWindows.Cli -c Release -o artifacts/tool-payload
+dotnet pack src/AgentWindows.Tool -c Release -o artifacts/package
 '''

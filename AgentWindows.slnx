@@ -3,6 +3,7 @@
         <Project Path="src/AgentWindows.Core/AgentWindows.Core.csproj" />
         <Project Path="src/AgentWindows.Automation/AgentWindows.Automation.csproj" />
         <Project Path="src/AgentWindows.Cli/AgentWindows.Cli.csproj" />
+        <Project Path="src/AgentWindows.Tool/AgentWindows.Tool.csproj" />
     </Folder>
     <Folder Name="/tests/">
         <Project Path="tests/AgentWindows.Core.Tests/AgentWindows.Core.Tests.csproj" />

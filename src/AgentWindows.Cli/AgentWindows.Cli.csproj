@@ -4,11 +4,8 @@
         <TargetFramework>net10.0-windows</TargetFramework>
         <RootNamespace>AgentWindows.Cli</RootNamespace>
         <AssemblyName>agent-windows</AssemblyName>
-        <PackAsTool>true</PackAsTool>
-        <ToolCommandName>agent-windows</ToolCommandName>
-        <PackageId>AgentWindows</PackageId>
         <Version>0.1.0</Version>
-        <Description>Windows-native UI automation CLI for AI agents, built on UI Automation (FlaUI).</Description>
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>

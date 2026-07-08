@@ -74,6 +74,14 @@ mise run format     # CSharpier
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
 ```
 
+To install the CLI globally after publishing:
+
+```
+dotnet tool install -g AgentWindows --add-source .\artifacts\package
+```
+
+The tool package needs the .NET 10 runtime; the self-contained `artifacts\publish\agent-windows.exe` runs without any .NET install. (Internally the tool package is a thin `net10.0` launcher around the `net10.0-windows` CLI, because the SDK's `PackAsTool` rejects windows-specific target frameworks — NETSDK1146.)
+
 ## Architecture
 
 - `src/AgentWindows.Core` — cross-platform, dependency-free: protocol records (JSON source-generated), snapshot tree model and text formatter, ref parsing, key-gesture parsing, request dispatcher over `IAutomationSession`. This is where the unit-test coverage lives.
