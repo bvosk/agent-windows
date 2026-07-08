@@ -66,7 +66,7 @@ public static class DaemonHost
             using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
             while (reader.ReadLine() is { } line)
             {
-                var stopwatch = Stopwatch.StartNew();
+                var started = Stopwatch.GetTimestamp();
                 var request = ProtocolSerializer.DeserializeRequest(line);
                 var response = request is null
                     ? DaemonResponse.Failure(
@@ -76,7 +76,7 @@ public static class DaemonHost
                     : dispatcher.Dispatch(request);
                 response = response with
                 {
-                    ElapsedMs = Math.Round(stopwatch.Elapsed.TotalMilliseconds, 1),
+                    ElapsedMs = Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1),
                 };
                 writer.WriteLine(ProtocolSerializer.SerializeResponse(response));
                 if (request is ShutdownRequest)

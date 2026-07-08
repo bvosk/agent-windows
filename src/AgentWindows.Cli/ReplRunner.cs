@@ -14,11 +14,16 @@ namespace AgentWindows.Cli;
 public sealed class ReplRunner(
     RootCommand root,
     CommandContext context,
+    string session,
     Func<DaemonRequest, DaemonResponse> send
 )
 {
+    private static readonly ParserConfiguration _parserConfiguration =
+        CommandTree.CreateConfiguration();
+
     private readonly RootCommand _root = root;
     private readonly CommandContext _context = context;
+    private readonly string _session = session;
     private readonly Func<DaemonRequest, DaemonResponse> _send = send;
 
     public int Run(TextReader input, TextWriter output)
@@ -39,9 +44,9 @@ public sealed class ReplRunner(
             }
 
             var response = ExecuteLine(line);
-            output.WriteLine(ProtocolSerializer.SerializeResponse(response));
+            var exitCode = OutputRenderer.Render(response, json: true, output, TextWriter.Null);
             output.Flush();
-            if (!response.Ok)
+            if (exitCode != 0)
             {
                 return 1;
             }
@@ -73,20 +78,36 @@ public sealed class ReplRunner(
     private DaemonRequest ParseCliLine(string line)
     {
         var tokens = CommandLineParser.SplitCommandLine(line).ToArray();
-        var parseResult = _root.Parse(tokens, CommandTree.CreateConfiguration());
-        return parseResult.Errors.Count > 0
-            ? throw new AutomationException(
+        var parseResult = _root.Parse(tokens, _parserConfiguration);
+        if (parseResult.Errors.Count > 0)
+        {
+            throw new AutomationException(
                 ErrorCodes.BadRequest,
                 string.Join(" ", parseResult.Errors.Select(e => e.Message))
-            )
-            : BuildRequest(parseResult);
-    }
+            );
+        }
 
-    private DaemonRequest BuildRequest(ParseResult parseResult) =>
-        _context.TryBuildRequest(parseResult, out var request)
-            ? request
-            : throw new AutomationException(
+        RejectForeignSession(parseResult);
+        return _context.BuildRequest(parseResult)
+            ?? throw new AutomationException(
                 ErrorCodes.BadRequest,
                 $"'{parseResult.CommandResult.Command.Name}' is not available inside the REPL."
             );
+    }
+
+    private void RejectForeignSession(ParseResult parseResult)
+    {
+        var explicitSession = _context.GetExplicitSession(parseResult);
+        if (
+            explicitSession is not null
+            && !string.Equals(explicitSession, _session, StringComparison.Ordinal)
+        )
+        {
+            throw new AutomationException(
+                ErrorCodes.BadRequest,
+                $"--session cannot change inside a REPL (this session is '{_session}'). "
+                    + "Start another 'agent-windows repl --session <name>' instead."
+            );
+        }
+    }
 }

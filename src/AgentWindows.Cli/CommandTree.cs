@@ -68,7 +68,7 @@ public static class CommandTree
         {
             var session = context.GetSession(parseResult);
             using var client = new DaemonClient(session);
-            var runner = new ReplRunner(root, context, request => client.Send(request));
+            var runner = new ReplRunner(root, context, session, request => client.Send(request));
             return runner.Run(Console.In, Console.Out);
         });
         return command;

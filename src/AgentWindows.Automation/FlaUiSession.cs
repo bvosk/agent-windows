@@ -75,9 +75,8 @@ public sealed class FlaUiSession : IAutomationSession
 
     public WindowInfo Attach(string? title, int? processId, long? windowHandle)
     {
-        var element = FindWindowElement(title, processId, windowHandle);
-        var info = ToWindowInfo(element);
-        if (info.IsElevated == true && !ElevationDetector.CurrentProcessIsElevated())
+        var info = FindWindow(title, processId, windowHandle);
+        if (info.IsElevated == true && !ProcessInterop.CurrentProcessIsElevated())
         {
             throw new AutomationException(
                 ErrorCodes.ElevatedTarget,
@@ -86,6 +85,7 @@ public sealed class FlaUiSession : IAutomationSession
             );
         }
 
+        var element = _automation.FromHandle(new IntPtr(info.WindowHandle));
         SetTarget(element.AsWindow());
         return info;
     }
@@ -618,36 +618,44 @@ public sealed class FlaUiSession : IAutomationSession
                     + "Take a new snapshot."
             );
 
-    private static AutomationElement FindByProcessId(AutomationElement[] windows, int pid) =>
-        Array.Find(windows, w => w.Properties.ProcessId.ValueOrDefault == pid)
-        ?? throw new AutomationException(
-            ErrorCodes.NotFound,
-            $"No top-level window found for pid {pid}."
-        );
-
-    private static AutomationElement FindByTitle(AutomationElement[] windows, string? title) =>
-        title is null
-            ? throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "attach requires --window <title>, --pid, or --hwnd."
-            )
-            : Array.Find(
-                windows,
-                w =>
-                    w.Properties.Name.ValueOrDefault?.Contains(
-                        title,
-                        StringComparison.OrdinalIgnoreCase
-                    ) == true
+    /// <summary>
+    /// Resolves the attach target against the same Win32 enumeration `list` uses,
+    /// so anything `list` reports is attachable.
+    /// </summary>
+    private static WindowInfo FindWindow(string? title, int? processId, long? windowHandle)
+    {
+        var windows = Win32WindowEnumerator.ListTopLevelWindows();
+        return (windowHandle, processId, title) switch
+        {
+            ({ } handle, _, _) => windows.FirstOrDefault(w => w.WindowHandle == handle)
+                ?? throw new AutomationException(
+                    ErrorCodes.NotFound,
+                    $"No visible top-level window with handle 0x{handle:X} found."
+                ),
+            (_, { } pid, _) => windows.FirstOrDefault(w => w.ProcessId == pid)
+                ?? throw new AutomationException(
+                    ErrorCodes.NotFound,
+                    $"No top-level window found for pid {pid}."
+                ),
+            (_, _, { } text) => windows.FirstOrDefault(w =>
+                w.Title.Contains(text, StringComparison.OrdinalIgnoreCase)
             )
                 ?? throw new AutomationException(
                     ErrorCodes.NotFound,
-                    $"No window with a title containing '{title}' found. "
+                    $"No window with a title containing '{text}' found. "
                         + "Run 'agent-windows list' to see available windows."
-                );
+                ),
+            _ => throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "attach requires --window <title>, --pid, or --hwnd."
+            ),
+        };
+    }
 
     private static WindowInfo ToWindowInfo(AutomationElement element)
     {
         var processId = element.Properties.ProcessId.ValueOrDefault;
+        var (processName, isElevated) = ProcessInterop.GetProcessInfo(processId);
         var handle = element.Properties.NativeWindowHandle.ValueOrDefault;
         var rect = element.Properties.BoundingRectangle.ValueOrDefault;
         return new WindowInfo
@@ -655,45 +663,12 @@ public sealed class FlaUiSession : IAutomationSession
             Title = element.Properties.Name.ValueOrDefault ?? "",
             WindowHandle = handle.ToInt64(),
             ProcessId = processId,
-            ProcessName = ElevationDetector.GetProcessName(processId),
-            IsElevated = ElevationDetector.ProcessIsElevated(processId),
+            ProcessName = processName,
+            IsElevated = isElevated,
             Bounds = rect.IsEmpty
                 ? null
                 : new BoundingRect(rect.X, rect.Y, rect.Width, rect.Height),
         };
-    }
-
-    private AutomationElement[] FindDesktopWindows()
-    {
-        // Bulk-cache the properties ToWindowInfo reads: one cross-process call
-        // instead of four per window.
-        var properties = _automation.PropertyLibrary;
-        var cacheRequest = new FlaUI.Core.CacheRequest
-        {
-            TreeScope = TreeScope.Element,
-            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
-        };
-        cacheRequest.Add(properties.Element.Name);
-        cacheRequest.Add(properties.Element.NativeWindowHandle);
-        cacheRequest.Add(properties.Element.BoundingRectangle);
-        cacheRequest.Add(properties.Element.ProcessId);
-        using (cacheRequest.Activate())
-        {
-            return _automation
-                .GetDesktop()
-                .FindAllChildren(cf => cf.ByControlType(ControlType.Window));
-        }
-    }
-
-    private AutomationElement FindWindowElement(string? title, int? processId, long? windowHandle)
-    {
-        if (windowHandle is { } handle)
-        {
-            return _automation.FromHandle(new IntPtr(handle));
-        }
-
-        var windows = FindDesktopWindows();
-        return processId is { } pid ? FindByProcessId(windows, pid) : FindByTitle(windows, title);
     }
 
     private void SetTarget(Window window)

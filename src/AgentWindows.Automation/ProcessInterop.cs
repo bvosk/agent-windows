@@ -3,7 +3,11 @@ using System.Security.Principal;
 
 namespace AgentWindows.Automation;
 
-public static partial class ElevationDetector
+/// <summary>
+/// Cheap per-process facts (name, elevation) read via Win32 from a single process
+/// handle; avoids the cost of System.Diagnostics.Process on hot paths.
+/// </summary>
+public static partial class ProcessInterop
 {
     private const int _processQueryLimitedInformation = 0x1000;
     private const int _tokenQuery = 0x0008;
@@ -16,10 +20,10 @@ public static partial class ElevationDetector
     }
 
     /// <summary>
-    /// Reads the target process token's elevation directly. Returns null when the
-    /// process is gone or its token is not accessible.
+    /// Reads the process name and token elevation from one process handle. Fields
+    /// are ""/null when the process is gone or not accessible.
     /// </summary>
-    public static bool? ProcessIsElevated(int processId)
+    public static (string Name, bool? IsElevated) GetProcessInfo(int processId)
     {
         var process = NativeMethods.OpenProcess(
             _processQueryLimitedInformation,
@@ -27,78 +31,60 @@ public static partial class ElevationDetector
             processId
         );
         if (process == IntPtr.Zero)
+        {
+            return ("", null);
+        }
+
+        try
+        {
+            return (ReadProcessName(process), ReadTokenElevation(process));
+        }
+        finally
+        {
+            NativeMethods.CloseHandle(process);
+        }
+    }
+
+    private static string ReadProcessName(IntPtr process)
+    {
+        var capacity = 1024;
+        var buffer = new char[capacity];
+        if (
+            !NativeMethods.QueryFullProcessImageNameW(process, 0, buffer, ref capacity)
+            || capacity <= 0
+        )
+        {
+            return "";
+        }
+
+        var path = new string(buffer, 0, capacity);
+        return Path.GetFileNameWithoutExtension(path);
+    }
+
+    private static bool? ReadTokenElevation(IntPtr process)
+    {
+        if (!NativeMethods.OpenProcessToken(process, _tokenQuery, out var token))
         {
             return null;
         }
 
         try
         {
-            if (!NativeMethods.OpenProcessToken(process, _tokenQuery, out var token))
-            {
-                return null;
-            }
-
-            try
-            {
-                return ReadTokenElevation(token);
-            }
-            finally
-            {
-                NativeMethods.CloseHandle(token);
-            }
-        }
-        finally
-        {
-            NativeMethods.CloseHandle(process);
-        }
-    }
-
-    /// <summary>Cheap process-name lookup (no Process object, no snapshot).</summary>
-    public static string GetProcessName(int processId)
-    {
-        var process = NativeMethods.OpenProcess(
-            _processQueryLimitedInformation,
-            bInheritHandle: false,
-            processId
-        );
-        if (process == IntPtr.Zero)
-        {
-            return "";
-        }
-
-        try
-        {
-            var capacity = 1024;
-            var buffer = new char[capacity];
-            if (
-                !NativeMethods.QueryFullProcessImageNameW(process, 0, buffer, ref capacity)
-                || capacity <= 0
+            var elevation = 0;
+            return NativeMethods.GetTokenInformation(
+                token,
+                _tokenElevation,
+                ref elevation,
+                sizeof(int),
+                out _
             )
-            {
-                return "";
-            }
-
-            var path = new string(buffer, 0, capacity);
-            return Path.GetFileNameWithoutExtension(path);
+                ? elevation != 0
+                : null;
         }
         finally
         {
-            NativeMethods.CloseHandle(process);
+            NativeMethods.CloseHandle(token);
         }
-    }
-
-    private static bool? ReadTokenElevation(IntPtr token)
-    {
-        var elevation = 0;
-        return NativeMethods.GetTokenInformation(
-            token,
-            _tokenElevation,
-            ref elevation,
-            sizeof(int),
-            out _
-        )
-            ? elevation != 0
-            : null;
     }
 
     private static partial class NativeMethods

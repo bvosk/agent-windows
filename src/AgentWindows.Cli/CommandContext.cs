@@ -29,17 +29,22 @@ public sealed class CommandContext(Option<bool> jsonOption, Option<string> sessi
         return parseResult.GetValue(SessionOption) ?? PipeNames.DefaultSession;
     }
 
-    public bool TryBuildRequest(ParseResult parseResult, out DaemonRequest request)
+    /// <summary>Builds the request for a parsed command line; null when the parsed
+    /// command has no registered builder (e.g. 'repl' or 'daemon run').</summary>
+    public DaemonRequest? BuildRequest(ParseResult parseResult)
     {
         ArgumentNullException.ThrowIfNull(parseResult);
-        if (_builders.TryGetValue(parseResult.CommandResult.Command, out var build))
-        {
-            request = build(parseResult);
-            return true;
-        }
+        return _builders.TryGetValue(parseResult.CommandResult.Command, out var build)
+            ? build(parseResult)
+            : null;
+    }
 
-        request = new StatusRequest();
-        return false;
+    /// <summary>The --session value only when the caller passed it explicitly.</summary>
+    public string? GetExplicitSession(ParseResult parseResult)
+    {
+        ArgumentNullException.ThrowIfNull(parseResult);
+        var result = parseResult.GetResult(SessionOption);
+        return result is null || result.Implicit ? null : parseResult.GetValue(SessionOption);
     }
 
     private int Execute(ParseResult parseResult, Func<ParseResult, DaemonRequest> build)

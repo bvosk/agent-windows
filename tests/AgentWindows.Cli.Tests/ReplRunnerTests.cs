@@ -18,6 +18,7 @@ public sealed class ReplRunnerTests
         _runner = new ReplRunner(
             root,
             context,
+            "default",
             request =>
             {
                 _sent.Add(request);
@@ -117,6 +118,25 @@ public sealed class ReplRunnerTests
         exitCode.ShouldBe(1);
         _sent.ShouldBeEmpty();
         lines.ShouldHaveSingleItem().ShouldContain(ErrorCodes.BadRequest);
+    }
+
+    [Fact]
+    public void ForeignSession_IsRejected()
+    {
+        var (exitCode, lines) = Run("status --session other\n");
+
+        exitCode.ShouldBe(1);
+        _sent.ShouldBeEmpty();
+        lines.ShouldHaveSingleItem().ShouldContain(ErrorCodes.BadRequest);
+    }
+
+    [Fact]
+    public void ExplicitOwnSession_IsAllowed()
+    {
+        var (exitCode, _) = Run("status --session default\n");
+
+        exitCode.ShouldBe(0);
+        _sent.ShouldHaveSingleItem().ShouldBeOfType<StatusRequest>();
     }
 
     [Fact]

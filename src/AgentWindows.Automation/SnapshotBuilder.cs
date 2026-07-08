@@ -40,7 +40,7 @@ public sealed class SnapshotBuilder
     ];
 
     private readonly Dictionary<string, AutomationElement> _refs = [];
-    private readonly List<(NodeData Node, AutomationElement Element)> _selectionFixups = [];
+    private readonly List<(UiNode Node, AutomationElement Element)> _selectionFixups = [];
     private readonly SnapshotOptions _options;
     private readonly bool _cached;
     private int _nextRefIndex;
@@ -62,50 +62,33 @@ public sealed class SnapshotBuilder
         ArgumentNullException.ThrowIfNull(options);
         try
         {
-            return BuildCached(root, options, firstRefIndex);
+            return BuildCore(root, options, firstRefIndex, cached: true);
         }
         catch (Exception ex) when (ex is COMException or NotSupportedException)
         {
             // Some providers reject bulk caching; fall back to a live walk.
-            return BuildLive(root, options, firstRefIndex);
+            return BuildCore(root, options, firstRefIndex, cached: false);
         }
     }
 
-    /// <summary>
-    /// Fetches the whole subtree (properties and pattern state) in one cross-process
-    /// UIA call instead of round-tripping per node per property.
-    /// </summary>
-    private static SnapshotBuildResult BuildCached(
+    private static SnapshotBuildResult BuildCore(
         AutomationElement root,
         SnapshotOptions options,
-        int firstRefIndex
+        int firstRefIndex,
+        bool cached
     )
     {
-        var builder = new SnapshotBuilder(options, firstRefIndex, cached: true);
-        NodeData? data;
-        var cacheRequest = CreateCacheRequest(root.Automation);
-        using (cacheRequest.Activate())
+        var builder = new SnapshotBuilder(options, firstRefIndex, cached);
+        var node = cached
+            ? builder.BuildTreeCached(root)
+            : builder.BuildNode(root, 0, isRoot: true);
+        builder.ApplySelectionFixups();
+        return new SnapshotBuildResult
         {
-            var cachedRoot =
-                root.FindFirst(TreeScope.Element, TrueCondition.Default)
-                ?? throw new NotSupportedException("Bulk-cached root fetch returned nothing.");
-            data = builder.BuildNode(cachedRoot, 0, isRoot: true);
-        }
-
-        builder.ApplySelectionFixups();
-        return builder.ToResult(data);
-    }
-
-    private static SnapshotBuildResult BuildLive(
-        AutomationElement root,
-        SnapshotOptions options,
-        int firstRefIndex
-    )
-    {
-        var builder = new SnapshotBuilder(options, firstRefIndex, cached: false);
-        var data = builder.BuildNode(root, 0, isRoot: true);
-        builder.ApplySelectionFixups();
-        return builder.ToResult(data);
+            Root = node ?? new UiNode { Role = "unknown" },
+            Refs = builder._refs,
+            NextRefIndex = builder._nextRefIndex,
+        };
     }
 
     private static CacheRequest CreateCacheRequest(AutomationBase automation)
@@ -233,33 +216,25 @@ public sealed class SnapshotBuilder
         }
     }
 
-    private static UiNode ToUiNode(NodeData data) =>
-        new()
-        {
-            Role = data.Role,
-            Name = data.Name,
-            AutomationId = data.AutomationId,
-            Ref = data.Ref,
-            Value = data.Value,
-            States = data.States,
-            Bounds = data.Bounds,
-            Children = [.. data.Children.Select(ToUiNode)],
-        };
-
     private static string? Truncate(string? value, int maxLength) =>
         string.IsNullOrEmpty(value) ? null : value[..Math.Min(value.Length, maxLength)];
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
-    private SnapshotBuildResult ToResult(NodeData? data)
+    /// <summary>
+    /// Fetches the whole subtree (properties and pattern state) in one cross-process
+    /// UIA call instead of round-tripping per node per property.
+    /// </summary>
+    private UiNode? BuildTreeCached(AutomationElement root)
     {
-        var root = data is null ? new UiNode { Role = "unknown" } : ToUiNode(data);
-        return new SnapshotBuildResult
+        var cacheRequest = CreateCacheRequest(root.Automation);
+        using (cacheRequest.Activate())
         {
-            Root = root,
-            Refs = _refs,
-            NextRefIndex = _nextRefIndex,
-        };
+            var cachedRoot =
+                root.FindFirst(TreeScope.Element, TrueCondition.Default)
+                ?? throw new NotSupportedException("Bulk-cached root fetch returned nothing.");
+            return BuildNode(cachedRoot, 0, isRoot: true);
+        }
     }
 
     private void ApplySelectionFixups()
@@ -270,7 +245,7 @@ public sealed class SnapshotBuilder
         }
     }
 
-    private NodeData? BuildNode(AutomationElement element, int depth, bool isRoot)
+    private UiNode? BuildNode(AutomationElement element, int depth, bool isRoot)
     {
         try
         {
@@ -283,7 +258,7 @@ public sealed class SnapshotBuilder
         }
     }
 
-    private NodeData? BuildNodeCore(AutomationElement element, int depth, bool isRoot)
+    private UiNode? BuildNodeCore(AutomationElement element, int depth, bool isRoot)
     {
         var controlType = element.Properties.ControlType.ValueOrDefault;
         var interactive = _interactiveTypes.Contains(controlType);
@@ -302,7 +277,7 @@ public sealed class SnapshotBuilder
             _refs[elementRef] = element;
         }
 
-        var node = new NodeData
+        var node = new UiNode
         {
             Role = RoleMapper.ToRole(controlType),
             Name = Truncate(element.Properties.Name.ValueOrDefault, _maxNameLength),
@@ -316,7 +291,7 @@ public sealed class SnapshotBuilder
         return node;
     }
 
-    private void PopulateValue(NodeData node, AutomationElement element)
+    private void PopulateValue(UiNode node, AutomationElement element)
     {
         var valuePattern = element.Patterns.Value.PatternOrDefault;
         if (valuePattern is not null)
@@ -333,7 +308,7 @@ public sealed class SnapshotBuilder
         }
     }
 
-    private List<NodeData> BuildChildren(AutomationElement element, int depth)
+    private List<UiNode> BuildChildren(AutomationElement element, int depth)
     {
         var maxDepth = _options.MaxDepth ?? _defaultMaxDepth;
         if (depth >= maxDepth)
@@ -341,7 +316,7 @@ public sealed class SnapshotBuilder
             return [];
         }
 
-        var children = new List<NodeData>();
+        var children = new List<UiNode>();
         var elements = _cached ? element.CachedChildren : element.FindAllChildren();
         foreach (var child in elements)
         {
@@ -353,24 +328,5 @@ public sealed class SnapshotBuilder
         }
 
         return children;
-    }
-
-    private sealed class NodeData
-    {
-        public required string Role { get; init; }
-
-        public string? Name { get; init; }
-
-        public string? AutomationId { get; init; }
-
-        public string? Ref { get; init; }
-
-        public string? Value { get; set; }
-
-        public required List<string> States { get; init; }
-
-        public BoundingRect? Bounds { get; init; }
-
-        public required List<NodeData> Children { get; init; }
     }
 }

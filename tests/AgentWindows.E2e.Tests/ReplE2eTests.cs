@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using AgentWindows.Core.Protocol;
+using AgentWindows.Core.Session;
 using Shouldly;
 using Xunit;
 
@@ -10,13 +10,10 @@ public sealed class ReplE2eTests
     [E2EFact]
     public async Task Repl_DrivesAFullFlowOverOneProcess()
     {
-        var session = $"e2e-{Guid.NewGuid():N}";
-        var cleanup = new CliRunner(session);
+        var runner = new CliRunner($"e2e-{Guid.NewGuid():N}");
         try
         {
-            var responses = await RunReplAsync(
-                session,
-                expectedExitCode: 0,
+            var (exitCode, responses) = await runner.RunReplAsync(
                 "# comment lines are skipped",
                 $"launch --app \"{TestPaths.TargetAppExecutable}\"",
                 "snapshot -i",
@@ -25,6 +22,7 @@ public sealed class ReplE2eTests
                 "exit"
             );
 
+            exitCode.ShouldBe(0);
             responses.Count.ShouldBe(4);
             responses.ShouldAllBe(r => r.Ok);
             responses[0].Payload.ShouldBeOfType<WindowPayload>();
@@ -34,111 +32,29 @@ public sealed class ReplE2eTests
         }
         finally
         {
-            await cleanup.RunAsync("daemon", "stop");
+            await runner.RunAsync("daemon", "stop");
         }
     }
 
     [E2EFact]
     public async Task Repl_FailsFastOnTheFirstError()
     {
-        var session = $"e2e-{Guid.NewGuid():N}";
-        var cleanup = new CliRunner(session);
+        var runner = new CliRunner($"e2e-{Guid.NewGuid():N}");
         try
         {
-            var responses = await RunReplAsync(
-                session,
-                expectedExitCode: 1,
+            var (exitCode, responses) = await runner.RunReplAsync(
                 "snapshot", // no target attached -> no-target failure
                 "status" // must never run
             );
 
+            exitCode.ShouldBe(1);
             var failure = responses.ShouldHaveSingleItem();
             failure.Ok.ShouldBeFalse();
-            failure.ErrorCode.ShouldBe(Core.Session.ErrorCodes.NoTarget);
+            failure.ErrorCode.ShouldBe(ErrorCodes.NoTarget);
         }
         finally
         {
-            await cleanup.RunAsync("daemon", "stop");
-        }
-    }
-
-    private static async Task<IReadOnlyList<DaemonResponse>> RunReplAsync(
-        string session,
-        int expectedExitCode,
-        params string[] lines
-    )
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = TestPaths.CliExecutable,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        startInfo.ArgumentList.Add("repl");
-        startInfo.ArgumentList.Add("--session");
-        startInfo.ArgumentList.Add(session);
-
-        using var process =
-            Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Failed to start {TestPaths.CliExecutable}");
-        var stdout = new System.Text.StringBuilder();
-        _ = PumpAsync(process.StandardOutput, stdout);
-        foreach (var line in lines)
-        {
-            await process.StandardInput.WriteLineAsync(line);
-        }
-
-        process.StandardInput.Close();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        await process.WaitForExitAsync(cts.Token);
-        await Task.Delay(TimeSpan.FromMilliseconds(500), CancellationToken.None);
-        process.ExitCode.ShouldBe(expectedExitCode);
-        string output;
-        lock (stdout)
-        {
-            output = stdout.ToString();
-        }
-
-        return
-        [
-            .. output
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Select(line => ProtocolSerializer.DeserializeResponse(line.TrimEnd('\r')))
-                .Where(response => response is not null)
-                .Select(response => response!),
-        ];
-    }
-
-    /// <summary>Drains without waiting for EOF; the spawned daemon inherits the pipe.</summary>
-    private static async Task PumpAsync(StreamReader reader, System.Text.StringBuilder sink)
-    {
-        var chunk = new char[4096];
-        try
-        {
-            while (true)
-            {
-                var read = await reader.ReadAsync(chunk);
-                if (read <= 0)
-                {
-                    return;
-                }
-
-                lock (sink)
-                {
-                    sink.Append(chunk, 0, read);
-                }
-            }
-        }
-        catch (ObjectDisposedException)
-        {
-            // Process torn down; nothing left to drain.
-        }
-        catch (IOException)
-        {
-            // Broken pipe on teardown.
+            await runner.RunAsync("daemon", "stop");
         }
     }
 }

@@ -10,12 +10,12 @@ namespace AgentWindows.Automation;
 public static partial class Win32WindowEnumerator
 {
     [ThreadStatic]
-    private static List<WindowInfo>? _current;
+    private static EnumerationState? _current;
 
     public static IReadOnlyList<WindowInfo> ListTopLevelWindows()
     {
-        var windows = new List<WindowInfo>();
-        _current = windows;
+        var state = new EnumerationState();
+        _current = state;
         try
         {
             unsafe
@@ -28,14 +28,14 @@ public static partial class Win32WindowEnumerator
             _current = null;
         }
 
-        return windows;
+        return state.Windows;
     }
 
     [UnmanagedCallersOnly]
     private static int EnumCallback(IntPtr hwnd, IntPtr lParam)
     {
-        var windows = _current;
-        if (windows is null)
+        var state = _current;
+        if (state is null)
         {
             return 0;
         }
@@ -53,14 +53,21 @@ public static partial class Win32WindowEnumerator
 
         _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
         var pid = (int)processId;
-        windows.Add(
+        // Name and elevation are per-process facts; many processes own several windows.
+        if (!state.ProcessInfo.TryGetValue(pid, out var info))
+        {
+            info = ProcessInterop.GetProcessInfo(pid);
+            state.ProcessInfo[pid] = info;
+        }
+
+        state.Windows.Add(
             new WindowInfo
             {
                 Title = title,
                 WindowHandle = hwnd.ToInt64(),
                 ProcessId = pid,
-                ProcessName = ElevationDetector.GetProcessName(pid),
-                IsElevated = ElevationDetector.ProcessIsElevated(pid),
+                ProcessName = info.Name,
+                IsElevated = info.IsElevated,
                 Bounds = GetBounds(hwnd),
             }
         );
@@ -133,5 +140,12 @@ public static partial class Win32WindowEnumerator
         [LibraryImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static partial bool GetWindowRect(IntPtr hwnd, out WindowRect lpRect);
+    }
+
+    private sealed class EnumerationState
+    {
+        public List<WindowInfo> Windows { get; } = [];
+
+        public Dictionary<int, (string Name, bool? IsElevated)> ProcessInfo { get; } = [];
     }
 }
