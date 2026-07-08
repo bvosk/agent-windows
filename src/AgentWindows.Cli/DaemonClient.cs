@@ -7,37 +7,86 @@ using AgentWindows.Core.Session;
 namespace AgentWindows.Cli;
 
 /// <summary>
-/// Thin named-pipe client. Auto-spawns the daemon (this same executable with
-/// 'daemon run') when it is not yet running.
+/// Named-pipe client that keeps one connection open across sends (the REPL sends
+/// many requests per process). Auto-spawns the daemon when it is not yet running.
 /// </summary>
-public sealed class DaemonClient(string session)
+public sealed class DaemonClient(string session) : IDisposable
 {
     private static readonly TimeSpan _spawnTimeout = TimeSpan.FromSeconds(10);
     private readonly string _pipeName = PipeNames.For(session);
     private readonly string _session = session;
+    private NamedPipeClientStream? _pipe;
+    private StreamReader? _reader;
+    private StreamWriter? _writer;
 
     public DaemonResponse Send(DaemonRequest request, bool spawnIfMissing = true)
     {
-        using var pipe = Connect(spawnIfMissing);
-        if (pipe is null)
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            return DaemonResponse.Success(new AckPayload { Detail = "daemon not running" });
+            if (!EnsureConnected(spawnIfMissing))
+            {
+                return DaemonResponse.Success(new AckPayload { Detail = "daemon not running" });
+            }
+
+            try
+            {
+                _writer!.WriteLine(ProtocolSerializer.SerializeRequest(request));
+                var line = _reader!.ReadLine();
+                if (line is null)
+                {
+                    // The daemon went away mid-conversation; reconnect and retry once.
+                    ResetConnection();
+                    continue;
+                }
+
+                return ProtocolSerializer.DeserializeResponse(line)
+                    ?? throw new AutomationException(
+                        ErrorCodes.InternalError,
+                        "The daemon sent an unparseable response."
+                    );
+            }
+            catch (IOException)
+            {
+                ResetConnection();
+            }
         }
 
-        using var reader = new StreamReader(pipe, leaveOpen: true);
-        using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
-        writer.WriteLine(ProtocolSerializer.SerializeRequest(request));
-        var line =
-            reader.ReadLine()
-            ?? throw new AutomationException(
-                ErrorCodes.InternalError,
-                "The daemon closed the connection without responding."
-            );
-        return ProtocolSerializer.DeserializeResponse(line)
-            ?? throw new AutomationException(
-                ErrorCodes.InternalError,
-                "The daemon sent an unparseable response."
-            );
+        throw new AutomationException(
+            ErrorCodes.InternalError,
+            "Lost the connection to the daemon. Run the command again."
+        );
+    }
+
+    public void Dispose() => ResetConnection();
+
+    private void ResetConnection()
+    {
+        _writer?.Dispose();
+        _reader?.Dispose();
+        _pipe?.Dispose();
+        _writer = null;
+        _reader = null;
+        _pipe = null;
+    }
+
+    private bool EnsureConnected(bool spawnIfMissing)
+    {
+        if (_pipe is { IsConnected: true })
+        {
+            return true;
+        }
+
+        ResetConnection();
+        var pipe = Connect(spawnIfMissing);
+        if (pipe is null)
+        {
+            return false;
+        }
+
+        _pipe = pipe;
+        _reader = new StreamReader(pipe, leaveOpen: true);
+        _writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+        return true;
     }
 
     [SuppressMessage(

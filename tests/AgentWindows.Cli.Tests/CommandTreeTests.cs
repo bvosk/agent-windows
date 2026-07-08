@@ -77,6 +77,7 @@ public sealed class CommandTreeTests
             "close",
             "status",
             "daemon",
+            "repl",
         ]);
     }
 }

@@ -43,6 +43,21 @@ The first command auto-starts a background **daemon** that owns a single UI Auto
 
 Global options: `--json` (machine-readable envelope), `--session <name>` (parallel isolated daemons; also `AGENT_WINDOWS_SESSION`). Action commands accept `--timeout <ms>` (default 10000) and retry until the element is enabled and on-screen.
 
+## REPL / batch mode (fast path for agents)
+
+Each one-shot command pays ~130ms of process startup. `agent-windows repl` starts one process that holds a persistent daemon connection, reads one command per stdin line, and writes exactly one JSON envelope per stdout line (~8ms per command instead of ~200ms):
+
+```
+agent-windows repl
+snapshot -i
+{"ok":true,"payload":{"kind":"snapshot",...},"elapsedMs":50.1}
+click @e5
+{"ok":true,"payload":{"kind":"ack","detail":"clicked"},"elapsedMs":2.3}
+exit
+```
+
+Rules: lines are CLI syntax (quotes supported) or a raw JSON request when the line starts with `{`; `#` comments and blank lines are skipped; `exit`/`quit` or stdin EOF end the session (so `agent-windows repl < script.txt` works); the **first failing command ends the session with exit code 1** — agents should re-snapshot and restart the loop. Nothing but response envelopes is ever written to stdout. The session's daemon connection is held for the lifetime of the REPL, so run parallel REPLs on separate `--session`s.
+
 ## JSON output
 
 Every command supports `--json` and prints a single-line envelope:

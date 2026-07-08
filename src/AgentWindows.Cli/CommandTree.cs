@@ -12,7 +12,9 @@ public static class CommandTree
     public static ParserConfiguration CreateConfiguration() =>
         new() { ResponseFileTokenReplacer = null };
 
-    public static RootCommand Build()
+    public static RootCommand Build() => Build(out _);
+
+    public static RootCommand Build(out CommandContext context)
     {
         var jsonOption = new Option<bool>("--json")
         {
@@ -27,7 +29,7 @@ public static class CommandTree
                 Environment.GetEnvironmentVariable("AGENT_WINDOWS_SESSION")
                 ?? PipeNames.DefaultSession,
         };
-        var context = new CommandContext(jsonOption, sessionOption);
+        context = new CommandContext(jsonOption, sessionOption);
 
         var root = new RootCommand(
             "Windows-native UI automation for AI agents, built on UI Automation."
@@ -51,7 +53,25 @@ public static class CommandTree
         root.Subcommands.Add(BuildClose(context));
         root.Subcommands.Add(BuildStatus(context));
         root.Subcommands.Add(BuildDaemon(context));
+        root.Subcommands.Add(BuildRepl(context, root));
         return root;
+    }
+
+    private static Command BuildRepl(CommandContext context, RootCommand root)
+    {
+        var command = new Command(
+            "repl",
+            "Read commands from stdin (one per line, CLI syntax or raw JSON) and write "
+                + "one JSON response per line. Exits non-zero on the first failure."
+        );
+        command.SetAction(parseResult =>
+        {
+            var session = context.GetSession(parseResult);
+            using var client = new DaemonClient(session);
+            var runner = new ReplRunner(root, context, request => client.Send(request));
+            return runner.Run(Console.In, Console.Out);
+        });
+        return command;
     }
 
     /// <summary>
