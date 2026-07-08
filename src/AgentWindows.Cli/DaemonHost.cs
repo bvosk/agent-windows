@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipes;
 using AgentWindows.Automation;
@@ -65,6 +66,7 @@ public static class DaemonHost
             using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
             while (reader.ReadLine() is { } line)
             {
+                var stopwatch = Stopwatch.StartNew();
                 var request = ProtocolSerializer.DeserializeRequest(line);
                 var response = request is null
                     ? DaemonResponse.Failure(
@@ -72,6 +74,10 @@ public static class DaemonHost
                         "The daemon received an unparseable request."
                     )
                     : dispatcher.Dispatch(request);
+                response = response with
+                {
+                    ElapsedMs = Math.Round(stopwatch.Elapsed.TotalMilliseconds, 1),
+                };
                 writer.WriteLine(ProtocolSerializer.SerializeResponse(response));
                 if (request is ShutdownRequest)
                 {

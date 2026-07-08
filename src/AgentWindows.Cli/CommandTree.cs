@@ -54,6 +54,14 @@ public static class CommandTree
         return root;
     }
 
+    /// <summary>
+    /// The daemon resolves relative paths against its own working directory, so
+    /// resolve caller-relative paths here. Bare names (e.g. notepad.exe) pass
+    /// through for PATH lookup.
+    /// </summary>
+    private static string ResolveAppPath(string app) =>
+        File.Exists(app) ? Path.GetFullPath(app) : app;
+
     private static Option<int> CreateTimeoutOption() =>
         new("--timeout")
         {
@@ -88,7 +96,7 @@ public static class CommandTree
             command,
             parseResult =>
                 RequestBuilder.BuildLaunch(
-                    parseResult.GetValue(appOption)!,
+                    ResolveAppPath(parseResult.GetValue(appOption)!),
                     parseResult.GetValue(argsOption),
                     parseResult.GetValue(timeoutOption)
                 )

@@ -6,6 +6,8 @@
         <AssemblyName>agent-windows</AssemblyName>
         <Version>0.1.0</Version>
         <IsPackable>false</IsPackable>
+        <!-- Cuts per-command JIT cost in published bits (each CLI call is a new process). -->
+        <PublishReadyToRun>true</PublishReadyToRun>
     </PropertyGroup>
 
     <ItemGroup>

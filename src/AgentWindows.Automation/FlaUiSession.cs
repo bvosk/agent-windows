@@ -25,11 +25,7 @@ public sealed class FlaUiSession : IAutomationSession
     private int _generation;
     private int _nextRefIndex = 1;
 
-    public IReadOnlyList<WindowInfo> ListWindows()
-    {
-        var windows = FindDesktopWindows();
-        return [.. windows.Select(ToWindowInfo)];
-    }
+    public IReadOnlyList<WindowInfo> ListWindows() => Win32WindowEnumerator.ListTopLevelWindows();
 
     public WindowInfo Launch(string path, string? arguments, TimeSpan timeout)
     {
@@ -81,7 +77,7 @@ public sealed class FlaUiSession : IAutomationSession
     {
         var element = FindWindowElement(title, processId, windowHandle);
         var info = ToWindowInfo(element);
-        if (info.IsElevated == true)
+        if (info.IsElevated == true && !ElevationDetector.CurrentProcessIsElevated())
         {
             throw new AutomationException(
                 ErrorCodes.ElevatedTarget,
@@ -610,19 +606,6 @@ public sealed class FlaUiSession : IAutomationSession
         pattern.SetWindowVisualState(state);
     }
 
-    private static string GetProcessName(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return process.ProcessName;
-        }
-        catch (ArgumentException)
-        {
-            return "";
-        }
-    }
-
     private static AutomationElement EnsureAvailable(
         AutomationElement element,
         string elementRef
@@ -672,7 +655,7 @@ public sealed class FlaUiSession : IAutomationSession
             Title = element.Properties.Name.ValueOrDefault ?? "",
             WindowHandle = handle.ToInt64(),
             ProcessId = processId,
-            ProcessName = GetProcessName(processId),
+            ProcessName = ElevationDetector.GetProcessName(processId),
             IsElevated = ElevationDetector.ProcessIsElevated(processId),
             Bounds = rect.IsEmpty
                 ? null
@@ -680,8 +663,27 @@ public sealed class FlaUiSession : IAutomationSession
         };
     }
 
-    private AutomationElement[] FindDesktopWindows() =>
-        _automation.GetDesktop().FindAllChildren(cf => cf.ByControlType(ControlType.Window));
+    private AutomationElement[] FindDesktopWindows()
+    {
+        // Bulk-cache the properties ToWindowInfo reads: one cross-process call
+        // instead of four per window.
+        var properties = _automation.PropertyLibrary;
+        var cacheRequest = new FlaUI.Core.CacheRequest
+        {
+            TreeScope = TreeScope.Element,
+            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
+        };
+        cacheRequest.Add(properties.Element.Name);
+        cacheRequest.Add(properties.Element.NativeWindowHandle);
+        cacheRequest.Add(properties.Element.BoundingRectangle);
+        cacheRequest.Add(properties.Element.ProcessId);
+        using (cacheRequest.Activate())
+        {
+            return _automation
+                .GetDesktop()
+                .FindAllChildren(cf => cf.ByControlType(ControlType.Window));
+        }
+    }
 
     private AutomationElement FindWindowElement(string? title, int? processId, long? windowHandle)
     {

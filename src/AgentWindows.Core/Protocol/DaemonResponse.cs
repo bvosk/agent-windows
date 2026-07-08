@@ -10,6 +10,9 @@ public sealed record DaemonResponse
 
     public ResponsePayload? Payload { get; init; }
 
+    /// <summary>Daemon-side handling time in milliseconds; stamped by the daemon host.</summary>
+    public double? ElapsedMs { get; init; }
+
     public static DaemonResponse Success(ResponsePayload payload) =>
         new() { Ok = true, Payload = payload };
 

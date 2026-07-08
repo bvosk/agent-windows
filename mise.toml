@@ -1,5 +1,6 @@
 [tools]
 dotnet = "10"
+hyperfine = "latest"
 
 [settings]
 quiet = true
@@ -35,6 +36,54 @@ run = '''
 set -e
 dotnet build AgentWindows.slnx
 AGENT_WINDOWS_E2E=1 dotnet test tests/AgentWindows.E2e.Tests --no-build
+'''
+
+[tasks.bench]
+description = "Benchmark end-to-end CLI command latency with hyperfine (Release build)"
+run = '''
+set -e
+dotnet build AgentWindows.slnx -c Release
+CLI=src/AgentWindows.Cli/bin/Release/net10.0-windows/agent-windows.exe
+TARGET=tests/AgentWindows.E2eTarget/bin/Release/net10.0-windows/AgentWindows.E2eTarget.exe
+SESSION="bench-$$"
+cleanup() {
+  "$CLI" close --force --session "$SESSION" >/dev/null 2>&1 || true
+  "$CLI" daemon stop --session "$SESSION" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+"$CLI" launch --app "$TARGET" --session "$SESSION"
+hyperfine -N --warmup 3 --runs 15 "$CLI status --session $SESSION" "$CLI list --session $SESSION" "$CLI snapshot -i --session $SESSION" "$CLI snapshot --session $SESSION" "$CLI press Escape --session $SESSION"
+echo "daemon-side elapsedMs (single runs):"
+for cmd in status list "snapshot -i" snapshot; do
+  ms=$("$CLI" $cmd --session "$SESSION" --json | grep -o '"elapsedMs":[0-9.]*' | cut -d: -f2)
+  printf "  %-12s %sms
+" "$cmd" "$ms"
+done
+'''
+
+[tasks.profile]
+description = "Capture a dotnet-trace of the daemon while it serves 30 interactive snapshots"
+run = '''
+set -e
+dotnet build AgentWindows.slnx -c Release
+CLI=src/AgentWindows.Cli/bin/Release/net10.0-windows/agent-windows.exe
+TARGET=tests/AgentWindows.E2eTarget/bin/Release/net10.0-windows/AgentWindows.E2eTarget.exe
+SESSION="profile-$$"
+cleanup() {
+  "$CLI" close --force --session "$SESSION" >/dev/null 2>&1 || true
+  "$CLI" daemon stop --session "$SESSION" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+"$CLI" launch --app "$TARGET" --session "$SESSION"
+PID=$("$CLI" status --session "$SESSION" | grep -oE "daemon: pid [0-9]+" | grep -oE "[0-9]+")
+mkdir -p artifacts/profile
+dotnet dotnet-trace collect -p "$PID" -o artifacts/profile/daemon.nettrace --duration 00:00:20 &
+TRACE=$!
+sleep 2
+for i in $(seq 1 30); do "$CLI" snapshot -i --session "$SESSION" >/dev/null; done
+wait $TRACE
+echo "Trace written to artifacts/profile/daemon.nettrace"
+echo "View with: dotnet dotnet-trace convert artifacts/profile/daemon.nettrace --format speedscope"
 '''
 
 [tasks.coverage]

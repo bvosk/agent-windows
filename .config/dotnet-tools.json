@@ -4,17 +4,30 @@
   "tools": {
     "husky": {
       "version": "0.8.0",
-      "commands": ["husky"],
+      "commands": [
+        "husky"
+      ],
       "rollForward": false
     },
     "dotnet-reportgenerator-globaltool": {
       "version": "5.5.1",
-      "commands": ["reportgenerator"],
+      "commands": [
+        "reportgenerator"
+      ],
       "rollForward": false
     },
     "csharpier": {
       "version": "1.2.6",
-      "commands": ["csharpier"],
+      "commands": [
+        "csharpier"
+      ],
+      "rollForward": false
+    },
+    "dotnet-trace": {
+      "version": "9.0.661903",
+      "commands": [
+        "dotnet-trace"
+      ],
       "rollForward": false
     }
   }
