@@ -9,5 +9,5 @@ public sealed record WaitRequest : DaemonRequest
 
     public bool Gone { get; init; }
 
-    public int TimeoutMs { get; init; } = 10_000;
+    public int TimeoutMs { get; init; } = ProtocolDefaults.TimeoutMs;
 }

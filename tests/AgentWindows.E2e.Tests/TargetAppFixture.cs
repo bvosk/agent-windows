@@ -27,6 +27,20 @@ public sealed class TargetAppFixture : IAsyncLifetime
         KillTargetIfAlive();
     }
 
+    /// <summary>Takes a fresh interactive snapshot and returns the ref of the element.</summary>
+    public async Task<string> RefOfAsync(string automationId)
+    {
+        var snapshot = await SnapshotAsync("-i");
+        return snapshot.Root.RequireByAutomationId(automationId).RequireRef();
+    }
+
+    /// <summary>Takes a fresh interactive snapshot and returns the element's states.</summary>
+    public async Task<IReadOnlyList<string>> StatesOfAsync(string automationId)
+    {
+        var snapshot = await SnapshotAsync("-i");
+        return snapshot.Root.RequireByAutomationId(automationId).States;
+    }
+
     public async Task<SnapshotPayload> SnapshotAsync(params string[] extraArguments)
     {
         string[] arguments = ["snapshot", .. extraArguments];

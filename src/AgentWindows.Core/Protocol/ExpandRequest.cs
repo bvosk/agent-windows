@@ -6,5 +6,5 @@ public sealed record ExpandRequest : DaemonRequest
 
     public bool Collapse { get; init; }
 
-    public int TimeoutMs { get; init; } = 10_000;
+    public int TimeoutMs { get; init; } = ProtocolDefaults.TimeoutMs;
 }

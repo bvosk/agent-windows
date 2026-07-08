@@ -7,5 +7,5 @@ public sealed record ToggleRequest : DaemonRequest
     /// <summary>Null toggles; true/false force a target state.</summary>
     public bool? State { get; init; }
 
-    public int TimeoutMs { get; init; } = 10_000;
+    public int TimeoutMs { get; init; } = ProtocolDefaults.TimeoutMs;
 }

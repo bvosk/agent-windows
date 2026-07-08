@@ -54,14 +54,6 @@ public sealed class RequestBuilderTests
             .Code.ShouldBe(ErrorCodes.BadRequest);
 
     [Fact]
-    public void BuildClick_RequiresRefOrCoordinates() =>
-        Should
-            .Throw<AutomationException>(() =>
-                RequestBuilder.BuildClick(null, null, false, false, false, 1000)
-            )
-            .Code.ShouldBe(ErrorCodes.BadRequest);
-
-    [Fact]
     public void BuildClick_MapsCoordinatesAndButton()
     {
         var request = RequestBuilder.BuildClick(null, "5,7", true, false, true, 2000);
@@ -94,16 +86,4 @@ public sealed class RequestBuilderTests
         RequestBuilder.BuildToggle("@e1", false, true, 1000).State.ShouldBe(false);
         RequestBuilder.BuildToggle("@e1", false, false, 1000).State.ShouldBeNull();
     }
-
-    [Fact]
-    public void BuildAttach_RequiresSomeSelector() =>
-        Should
-            .Throw<AutomationException>(() => RequestBuilder.BuildAttach(null, null, null))
-            .Code.ShouldBe(ErrorCodes.BadRequest);
-
-    [Fact]
-    public void BuildWait_RequiresRefOrText() =>
-        Should
-            .Throw<AutomationException>(() => RequestBuilder.BuildWait(null, null, false, 1000))
-            .Code.ShouldBe(ErrorCodes.BadRequest);
 }

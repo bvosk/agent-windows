@@ -126,9 +126,9 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
-    public void Press_InvalidGesture_FailsWithBadRequest()
+    public void Press_InvalidGestureSyntax_FailsWithBadRequest()
     {
-        var response = _dispatcher.Dispatch(new PressRequest { Keys = "NotAKey" });
+        var response = _dispatcher.Dispatch(new PressRequest { Keys = "Ctrl+" });
 
         response.Ok.ShouldBeFalse();
         response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
@@ -218,6 +218,49 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
+    public void Attach_WithoutAnySelector_FailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new AttachRequest());
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void WindowMove_WithoutCoordinates_FailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(
+            new WindowActionRequest { Action = Core.Model.WindowActionKind.Move, X = 10 }
+        );
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void WindowResize_WithoutDimensions_FailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(
+            new WindowActionRequest { Action = Core.Model.WindowActionKind.Resize }
+        );
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+    }
+
+    [Fact]
+    public void Screenshot_WithRelativePath_FailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new ScreenshotRequest { OutputPath = "shot.png" });
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void SelectExpandToggleScrollScreenshotCloseWindow_RouteToSession()
     {
         _dispatcher.Dispatch(new SelectRequest { Ref = "@e1", Item = "Red" });
@@ -226,7 +269,7 @@ public sealed class RequestDispatcherTests : IDisposable
         _dispatcher.Dispatch(
             new ScrollRequest { Ref = "@e4", Direction = Core.Model.ScrollDirection.Down }
         );
-        _dispatcher.Dispatch(new ScreenshotRequest { OutputPath = "shot.png" });
+        _dispatcher.Dispatch(new ScreenshotRequest { OutputPath = @"C:\shots\shot.png" });
         _dispatcher.Dispatch(
             new WindowActionRequest { Action = Core.Model.WindowActionKind.Maximize }
         );
@@ -237,7 +280,7 @@ public sealed class RequestDispatcherTests : IDisposable
             "expand ref=e2 collapse=True timeout=10000",
             "toggle ref=e3 state=True timeout=10000",
             "scroll ref=e4 direction=Down amount=1 timeout=10000",
-            "screenshot ref= path=shot.png",
+            @"screenshot ref= path=C:\shots\shot.png",
             "window action=Maximize x= y= width= height=",
             "close force=True",
         ]);

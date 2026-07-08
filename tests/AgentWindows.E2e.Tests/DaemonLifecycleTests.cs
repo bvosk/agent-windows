@@ -12,13 +12,13 @@ public sealed class DaemonLifecycleTests(TargetAppFixture fixture) : IClassFixtu
     [E2EFact]
     public async Task FirstCommand_AutoSpawnsADaemon_AndStopTerminatesIt()
     {
-        var runner = new CliRunner($"e2e-{Guid.NewGuid():N}");
+        await using var session = new EphemeralCliSession();
 
-        var status = await runner.RunAsync("status");
+        var status = await session.Cli.RunAsync("status");
         var daemonPid = status.ShouldSucceedWith<StatusPayload>().Status.DaemonProcessId;
         daemonPid.ShouldBeGreaterThan(0);
 
-        (await runner.RunAsync("daemon", "stop")).ShouldSucceed();
+        (await session.Cli.RunAsync("daemon", "stop")).ShouldSucceed();
 
         WaitForProcessExit(daemonPid);
     }
@@ -26,27 +26,21 @@ public sealed class DaemonLifecycleTests(TargetAppFixture fixture) : IClassFixtu
     [E2EFact]
     public async Task Sessions_AreIsolatedFromEachOther()
     {
-        var other = new CliRunner($"e2e-{Guid.NewGuid():N}");
-        try
-        {
-            var fixtureStatus = await _fixture.Cli.RunAsync("status");
-            fixtureStatus.ShouldSucceedWith<StatusPayload>().Status.Target.ShouldNotBeNull();
+        await using var other = new EphemeralCliSession();
 
-            var otherStatus = await other.RunAsync("status");
-            otherStatus.ShouldSucceedWith<StatusPayload>().Status.Target.ShouldBeNull();
-        }
-        finally
-        {
-            await other.RunAsync("daemon", "stop");
-        }
+        var fixtureStatus = await _fixture.Cli.RunAsync("status");
+        fixtureStatus.ShouldSucceedWith<StatusPayload>().Status.Target.ShouldNotBeNull();
+
+        var otherStatus = await other.Cli.RunAsync("status");
+        otherStatus.ShouldSucceedWith<StatusPayload>().Status.Target.ShouldBeNull();
     }
 
     [E2EFact]
     public async Task DaemonStop_WithoutARunningDaemon_StillSucceeds()
     {
-        var runner = new CliRunner($"e2e-{Guid.NewGuid():N}");
+        await using var session = new EphemeralCliSession();
 
-        var result = await runner.RunAsync("daemon", "stop");
+        var result = await session.Cli.RunAsync("daemon", "stop");
 
         result.ExitCode.ShouldBe(0);
         result.Response.ShouldNotBeNull();

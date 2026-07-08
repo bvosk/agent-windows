@@ -5,42 +5,13 @@ using AgentWindows.Core.Session;
 
 namespace AgentWindows.Cli;
 
-/// <summary>Pure translation from parsed CLI input to protocol requests.</summary>
+/// <summary>
+/// CLI-specific parsing and translation (coordinates, flag pairs, enum names).
+/// Request-shape validation lives in the dispatcher — the single authority that
+/// also covers raw-JSON REPL input.
+/// </summary>
 public static class RequestBuilder
 {
-    public static LaunchRequest BuildLaunch(string app, string? arguments, int timeoutMs) =>
-        new()
-        {
-            Path = app,
-            Arguments = arguments,
-            TimeoutMs = timeoutMs,
-        };
-
-    public static AttachRequest BuildAttach(string? title, int? processId, long? windowHandle) =>
-        title is null && processId is null && windowHandle is null
-            ? throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "attach requires --window <title>, --pid, or --hwnd."
-            )
-            : new AttachRequest
-            {
-                Title = title,
-                ProcessId = processId,
-                WindowHandle = windowHandle,
-            };
-
-    public static SnapshotRequest BuildSnapshot(
-        bool interactiveOnly,
-        int? maxDepth,
-        string? scope
-    ) =>
-        new()
-        {
-            InteractiveOnly = interactiveOnly,
-            MaxDepth = maxDepth,
-            ScopeRef = scope,
-        };
-
     public static ClickRequest BuildClick(
         string? elementRef,
         string? at,
@@ -50,14 +21,6 @@ public static class RequestBuilder
         int timeoutMs
     )
     {
-        if (elementRef is null && at is null)
-        {
-            throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "click requires an element ref (e.g. '@e5') or --at x,y."
-            );
-        }
-
         var point = at is null ? ((int X, int Y)?)null : ParsePoint(at);
         var button = MouseButtonKind.Left;
         if (right)
@@ -79,20 +42,6 @@ public static class RequestBuilder
             TimeoutMs = timeoutMs,
         };
     }
-
-    public static ScrollRequest BuildScroll(
-        string? elementRef,
-        string direction,
-        double amount,
-        int timeoutMs
-    ) =>
-        new()
-        {
-            Ref = elementRef,
-            Direction = ParseDirection(direction),
-            Amount = amount,
-            TimeoutMs = timeoutMs,
-        };
 
     public static ToggleRequest BuildToggle(string elementRef, bool on, bool off, int timeoutMs)
     {
@@ -121,38 +70,6 @@ public static class RequestBuilder
             TimeoutMs = timeoutMs,
         };
     }
-
-    public static WaitRequest BuildWait(string? elementRef, string? text, bool gone, int timeoutMs)
-    {
-        return elementRef is null && text is null
-            ? throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "wait requires an element ref (e.g. '@e5') or --text."
-            )
-            : new WaitRequest
-            {
-                Ref = elementRef,
-                Text = text,
-                Gone = gone,
-                TimeoutMs = timeoutMs,
-            };
-    }
-
-    public static WindowActionRequest BuildWindowAction(
-        string action,
-        int? x,
-        int? y,
-        int? width,
-        int? height
-    ) =>
-        new()
-        {
-            Action = ParseWindowAction(action),
-            X = x,
-            Y = y,
-            Width = width,
-            Height = height,
-        };
 
     public static (int X, int Y) ParsePoint(string at)
     {

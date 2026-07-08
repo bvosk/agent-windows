@@ -10,24 +10,24 @@ public sealed class ExtendedVerbTests(TargetAppFixture fixture) : IClassFixture<
     [E2EFact]
     public async Task Toggle_OnAndOff_IsIdempotent()
     {
-        var checkRef = await RefOf("FeatureCheck");
+        var checkRef = await _fixture.RefOfAsync("FeatureCheck");
 
         (await _fixture.Cli.RunAsync("toggle", $"@{checkRef}", "--on")).ShouldSucceed();
-        (await StatesOf("FeatureCheck")).ShouldContain("checked");
+        (await _fixture.StatesOfAsync("FeatureCheck")).ShouldContain("checked");
 
-        checkRef = await RefOf("FeatureCheck");
+        checkRef = await _fixture.RefOfAsync("FeatureCheck");
         (await _fixture.Cli.RunAsync("toggle", $"@{checkRef}", "--on")).ShouldSucceed();
-        (await StatesOf("FeatureCheck")).ShouldContain("checked");
+        (await _fixture.StatesOfAsync("FeatureCheck")).ShouldContain("checked");
 
-        checkRef = await RefOf("FeatureCheck");
+        checkRef = await _fixture.RefOfAsync("FeatureCheck");
         (await _fixture.Cli.RunAsync("toggle", $"@{checkRef}", "--off")).ShouldSucceed();
-        (await StatesOf("FeatureCheck")).ShouldContain("unchecked");
+        (await _fixture.StatesOfAsync("FeatureCheck")).ShouldContain("unchecked");
     }
 
     [E2EFact]
     public async Task Select_ComboItem_ChangesTheValue()
     {
-        var comboRef = await RefOf("ColorCombo");
+        var comboRef = await _fixture.RefOfAsync("ColorCombo");
 
         (await _fixture.Cli.RunAsync("select", $"@{comboRef}", "Blue")).ShouldSucceed();
 
@@ -39,7 +39,7 @@ public sealed class ExtendedVerbTests(TargetAppFixture fixture) : IClassFixture<
     [E2EFact]
     public async Task Expand_TreeNode_RevealsAndHidesChildren()
     {
-        var nodeRef = await RefOf("FruitsNode");
+        var nodeRef = await _fixture.RefOfAsync("FruitsNode");
         (await _fixture.Cli.RunAsync("expand", $"@{nodeRef}")).ShouldSucceed();
 
         var expanded = await _fixture.SnapshotAsync("-i");
@@ -56,7 +56,7 @@ public sealed class ExtendedVerbTests(TargetAppFixture fixture) : IClassFixture<
     [E2EFact]
     public async Task Scroll_List_Succeeds()
     {
-        var listRef = await RefOf("BigList");
+        var listRef = await _fixture.RefOfAsync("BigList");
 
         var result = await _fixture.Cli.RunAsync("scroll", "down", $"@{listRef}", "--amount", "5");
 
@@ -89,7 +89,7 @@ public sealed class ExtendedVerbTests(TargetAppFixture fixture) : IClassFixture<
     [E2EFact]
     public async Task Screenshot_Element_WritesAPngFile()
     {
-        var buttonRef = await RefOf("SubmitButton");
+        var buttonRef = await _fixture.RefOfAsync("SubmitButton");
         var path = Path.Combine(Path.GetTempPath(), $"aw-e2e-{Guid.NewGuid():N}.png");
         try
         {
@@ -106,17 +106,5 @@ public sealed class ExtendedVerbTests(TargetAppFixture fixture) : IClassFixture<
         {
             File.Delete(path);
         }
-    }
-
-    private async Task<string> RefOf(string automationId)
-    {
-        var snapshot = await _fixture.SnapshotAsync("-i");
-        return snapshot.Root.RequireByAutomationId(automationId).RequireRef();
-    }
-
-    private async Task<IReadOnlyList<string>> StatesOf(string automationId)
-    {
-        var snapshot = await _fixture.SnapshotAsync("-i");
-        return snapshot.Root.RequireByAutomationId(automationId).States;
     }
 }

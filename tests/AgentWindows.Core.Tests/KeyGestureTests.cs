@@ -17,19 +17,14 @@ public sealed class KeyGestureTests
     }
 
     [Fact]
-    public void Parse_NamedKeyIsCaseInsensitiveAndCanonicalized()
+    public void Parse_PreservesTheKeyTokenAsWritten()
     {
-        KeyGesture.Parse("enter").Key.ShouldBe("Enter");
-        KeyGesture.Parse("PAGEUP").Key.ShouldBe("PageUp");
+        // Which named keys exist is the automation layer's decision; parsing
+        // only validates syntax and keeps the token verbatim.
+        KeyGesture.Parse("enter").Key.ShouldBe("enter");
+        KeyGesture.Parse("PAGEUP").Key.ShouldBe("PAGEUP");
+        KeyGesture.Parse("NotAKnownKey").Key.ShouldBe("NotAKnownKey");
     }
-
-    [Theory]
-    [InlineData("Esc", "Escape")]
-    [InlineData("Return", "Enter")]
-    [InlineData("Del", "Delete")]
-    [InlineData("PgDn", "PageDown")]
-    public void Parse_ResolvesAliases(string alias, string canonical) =>
-        KeyGesture.Parse(alias).Key.ShouldBe(canonical);
 
     [Fact]
     public void Parse_ChordWithModifiers()
@@ -62,17 +57,16 @@ public sealed class KeyGestureTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData("Foo")]
     [InlineData("Ctrl+")]
     [InlineData("Bad+S")]
     [InlineData("Enter+S")]
-    public void TryParse_RejectsInvalidInput(string input) =>
+    public void TryParse_RejectsInvalidSyntax(string input) =>
         KeyGesture.TryParse(input, out _).ShouldBeFalse();
 
     [Fact]
-    public void Parse_InvalidInput_ThrowsBadRequest()
+    public void Parse_InvalidSyntax_ThrowsBadRequest()
     {
-        var exception = Should.Throw<AutomationException>(() => KeyGesture.Parse("NotAKey"));
+        var exception = Should.Throw<AutomationException>(() => KeyGesture.Parse("Ctrl+"));
         exception.Code.ShouldBe(ErrorCodes.BadRequest);
     }
 }

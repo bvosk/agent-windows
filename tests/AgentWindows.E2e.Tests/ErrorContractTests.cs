@@ -11,20 +11,14 @@ public sealed class ErrorContractTests(TargetAppFixture fixture) : IClassFixture
     [E2EFact]
     public async Task Snapshot_WithoutTarget_ReturnsNoTarget()
     {
-        var runner = new CliRunner($"e2e-{Guid.NewGuid():N}");
-        try
-        {
-            var result = await runner.RunAsync("snapshot");
+        await using var session = new EphemeralCliSession();
 
-            result.ExitCode.ShouldBe(1);
-            result.Response.ShouldNotBeNull();
-            result.Response.Ok.ShouldBeFalse();
-            result.Response.ErrorCode.ShouldBe(ErrorCodes.NoTarget);
-        }
-        finally
-        {
-            await runner.RunAsync("daemon", "stop");
-        }
+        var result = await session.Cli.RunAsync("snapshot");
+
+        result.ExitCode.ShouldBe(1);
+        result.Response.ShouldNotBeNull();
+        result.Response.Ok.ShouldBeFalse();
+        result.Response.ErrorCode.ShouldBe(ErrorCodes.NoTarget);
     }
 
     [E2EFact]

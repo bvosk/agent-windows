@@ -9,6 +9,7 @@ using AgentWindows.Core.Snapshot;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
+using FlaUI.Core.Conditions;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
 using FlaUI.Core.WindowsAPI;
@@ -168,7 +169,8 @@ public sealed class FlaUiSession : IAutomationSession
 
         throw new AutomationException(
             ErrorCodes.BadRequest,
-            $"Key '{gesture.Key}' cannot be combined with modifiers."
+            $"Unknown key '{gesture.Key}'. Use a named key (e.g. Enter, F5, PageDown) "
+                + "or a single character."
         );
     }
 
@@ -273,16 +275,16 @@ public sealed class FlaUiSession : IAutomationSession
     public string CaptureScreenshot(string? elementRef, string outputPath)
     {
         var element = elementRef is not null ? Resolve(elementRef) : ScreenshotFallbackElement();
-        var fullPath = Path.GetFullPath(outputPath);
-        var directory = Path.GetDirectoryName(fullPath);
+        // The dispatcher rejects relative paths; outputPath is absolute here.
+        var directory = Path.GetDirectoryName(outputPath);
         if (!string.IsNullOrEmpty(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
         using var image = Capture.Element(element);
-        image.ToFile(fullPath);
-        return fullPath;
+        image.ToFile(outputPath);
+        return outputPath;
     }
 
     public WindowInfo PerformWindowAction(
@@ -301,16 +303,12 @@ public sealed class FlaUiSession : IAutomationSession
         }
         else if (kind == WindowActionKind.Move)
         {
-            RequireTransform(window)
-                .Move(RequireArg(x, "move requires --x"), RequireArg(y, "move requires --y"));
+            // Argument presence is validated by the dispatcher.
+            RequireTransform(window).Move(x.GetValueOrDefault(), y.GetValueOrDefault());
         }
         else if (kind == WindowActionKind.Resize)
         {
-            RequireTransform(window)
-                .Resize(
-                    RequireArg(width, "resize requires --width"),
-                    RequireArg(height, "resize requires --height")
-                );
+            RequireTransform(window).Resize(width.GetValueOrDefault(), height.GetValueOrDefault());
         }
         else
         {
@@ -466,10 +464,7 @@ public sealed class FlaUiSession : IAutomationSession
         var rect = element.Properties.BoundingRectangle.ValueOrDefault;
         if (!rect.IsEmpty)
         {
-            Mouse.Position = new System.Drawing.Point(
-                rect.X + (rect.Width / 2),
-                rect.Y + (rect.Height / 2)
-            );
+            Mouse.Position = RectConversions.Center(rect);
         }
 
         if (direction == ScrollDirection.Up)
@@ -492,17 +487,29 @@ public sealed class FlaUiSession : IAutomationSession
 
     private static bool ContainsText(AutomationElement root, string text)
     {
+        // One bulk cross-process fetch of every descendant name per poll tick,
+        // instead of one COM round-trip per element.
+        var cacheRequest = new CacheRequest
+        {
+            TreeScope = TreeScope.Subtree,
+            TreeFilter = TrueCondition.Default,
+            AutomationElementMode = AutomationElementMode.None,
+        };
+        cacheRequest.Add(root.Automation.PropertyLibrary.Element.Name);
         try
         {
-            var descendants = root.FindAllDescendants();
-            return Array.Exists(
-                descendants,
-                d =>
-                    d.Properties.Name.ValueOrDefault?.Contains(
-                        text,
-                        StringComparison.OrdinalIgnoreCase
-                    ) == true
-            );
+            using (cacheRequest.Activate())
+            {
+                var descendants = root.FindAllDescendants();
+                return Array.Exists(
+                    descendants,
+                    d =>
+                        d.Properties.Name.ValueOrDefault?.Contains(
+                            text,
+                            StringComparison.OrdinalIgnoreCase
+                        ) == true
+                );
+            }
         }
         catch (COMException)
         {
@@ -564,7 +571,7 @@ public sealed class FlaUiSession : IAutomationSession
                 ErrorCodes.InternalError,
                 $"{ElementRef.Display(elementRef)} has no clickable point or bounds."
             )
-            : new System.Drawing.Point(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2));
+            : RectConversions.Center(rect);
     }
 
     private static AutomationException PatternUnsupported(string elementRef, string pattern) =>
@@ -572,9 +579,6 @@ public sealed class FlaUiSession : IAutomationSession
             ErrorCodes.PatternUnsupported,
             $"{ElementRef.Display(elementRef)} does not support the {pattern} pattern."
         );
-
-    private static int RequireArg(int? value, string message) =>
-        value ?? throw new AutomationException(ErrorCodes.BadRequest, message);
 
     private static FlaUI.Core.Patterns.ITransformPattern RequireTransform(Window window) =>
         window.Patterns.Transform.PatternOrDefault
@@ -645,10 +649,8 @@ public sealed class FlaUiSession : IAutomationSession
                     $"No window with a title containing '{text}' found. "
                         + "Run 'agent-windows list' to see available windows."
                 ),
-            _ => throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "attach requires --window <title>, --pid, or --hwnd."
-            ),
+            // The dispatcher rejects attach requests with no selector.
+            _ => throw new UnreachableException(),
         };
     }
 
@@ -665,9 +667,7 @@ public sealed class FlaUiSession : IAutomationSession
             ProcessId = processId,
             ProcessName = processName,
             IsElevated = isElevated,
-            Bounds = rect.IsEmpty
-                ? null
-                : new BoundingRect(rect.X, rect.Y, rect.Width, rect.Height),
+            Bounds = RectConversions.ToBoundingRect(rect),
         };
     }
 
@@ -704,8 +704,10 @@ public sealed class FlaUiSession : IAutomationSession
 
     private AutomationException MissingRefError(string elementRef)
     {
-        var index = int.Parse(elementRef[1..], CultureInfo.InvariantCulture);
-        var code = index < _nextRefIndex ? ErrorCodes.StaleRef : ErrorCodes.UnknownRef;
+        var code =
+            ElementRef.TryGetIndex(elementRef, out var index) && index < _nextRefIndex
+                ? ErrorCodes.StaleRef
+                : ErrorCodes.UnknownRef;
         return new AutomationException(
             code,
             $"{ElementRef.Display(elementRef)} is not part of the most recent snapshot "

@@ -96,7 +96,10 @@ public sealed class DaemonClient(string session) : IDisposable
     )]
     private NamedPipeClientStream? Connect(bool spawnIfMissing)
     {
-        if (TryConnect(TimeSpan.FromMilliseconds(250)) is { } pipe)
+        // Probing pipe existence is free; NamedPipeClientStream.Connect(timeout)
+        // otherwise burns its full timeout retrying when no daemon exists.
+        var pipeExists = PipeProbe.Exists(_pipeName);
+        if (pipeExists && TryConnect(TimeSpan.FromMilliseconds(250)) is { } pipe)
         {
             return pipe;
         }
@@ -106,7 +109,14 @@ public sealed class DaemonClient(string session) : IDisposable
             return null;
         }
 
-        SpawnDaemon();
+        if (!pipeExists)
+        {
+            // Absent pipe means no daemon: spawn immediately. An existing-but-busy
+            // pipe (e.g. a REPL holds it) must NOT spawn a doomed duplicate; just
+            // keep retrying until the holder releases it or the deadline passes.
+            SpawnDaemon();
+        }
+
         var deadline = Stopwatch.StartNew();
         while (deadline.Elapsed < _spawnTimeout)
         {

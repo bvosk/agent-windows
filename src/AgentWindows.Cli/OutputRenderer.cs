@@ -50,7 +50,6 @@ public static class OutputRenderer
             ScreenshotPayload p => $"saved: {p.Path}\n",
             StatusPayload p => RenderStatus(p.Status),
             AckPayload p => $"ok: {p.Detail ?? "done"}\n",
-            null => "ok\n",
             _ => "ok\n",
         };
 

@@ -3,50 +3,13 @@ using AgentWindows.Core.Session;
 
 namespace AgentWindows.Core.Input;
 
+/// <summary>
+/// A parsed key chord. Parsing validates syntax only (modifiers plus a non-empty
+/// key token); which named keys exist is decided by the automation layer, the
+/// single authority for the key vocabulary.
+/// </summary>
 public sealed record KeyGesture
 {
-    private static readonly HashSet<string> _namedKeys = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Enter",
-        "Tab",
-        "Escape",
-        "Space",
-        "Backspace",
-        "Delete",
-        "Insert",
-        "Home",
-        "End",
-        "PageUp",
-        "PageDown",
-        "Up",
-        "Down",
-        "Left",
-        "Right",
-        "F1",
-        "F2",
-        "F3",
-        "F4",
-        "F5",
-        "F6",
-        "F7",
-        "F8",
-        "F9",
-        "F10",
-        "F11",
-        "F12",
-    };
-
-    private static readonly Dictionary<string, string> _keyAliases = new(
-        StringComparer.OrdinalIgnoreCase
-    )
-    {
-        ["Esc"] = "Escape",
-        ["Return"] = "Enter",
-        ["Del"] = "Delete",
-        ["PgUp"] = "PageUp",
-        ["PgDn"] = "PageDown",
-    };
-
     private static readonly Dictionary<string, KeyModifier> _modifierNames = new(
         StringComparer.OrdinalIgnoreCase
     )
@@ -68,7 +31,7 @@ public sealed record KeyGesture
 
     public IReadOnlyList<KeyModifier> Modifiers { get; }
 
-    /// <summary>Canonical key: a named key (e.g. "Enter", "F5") or a single character.</summary>
+    /// <summary>The key token as written: a named key (e.g. "Enter") or a character.</summary>
     public string Key { get; }
 
     public static KeyGesture Parse(string input) =>
@@ -102,30 +65,10 @@ public sealed record KeyGesture
             }
         }
 
-        var keyPart = parts[^1];
-        if (keyPart.Length == 0)
+        var key = parts[^1];
+        if (key.Length == 0)
         {
             return false;
-        }
-
-        string key;
-        if (keyPart.Length == 1)
-        {
-            key = keyPart;
-        }
-        else
-        {
-            if (_keyAliases.TryGetValue(keyPart, out var alias))
-            {
-                keyPart = alias;
-            }
-
-            if (!_namedKeys.TryGetValue(keyPart, out var canonical))
-            {
-                return false;
-            }
-
-            key = canonical;
         }
 
         gesture = new KeyGesture(modifiers, key);

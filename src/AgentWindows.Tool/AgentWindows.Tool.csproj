@@ -13,6 +13,8 @@
         <PackageId>AgentWindows</PackageId>
         <Version>0.1.0</Version>
         <Description>Windows-native UI automation CLI for AI agents, built on UI Automation (FlaUI).</Description>
+        <!-- The shim is a second process start on every tool command; keep it fast. -->
+        <PublishReadyToRun>true</PublishReadyToRun>
     </PropertyGroup>
 
     <ItemGroup>

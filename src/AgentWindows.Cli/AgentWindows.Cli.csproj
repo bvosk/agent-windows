@@ -8,6 +8,8 @@
         <IsPackable>false</IsPackable>
         <!-- Cuts per-command JIT cost in published bits (each CLI call is a new process). -->
         <PublishReadyToRun>true</PublishReadyToRun>
+        <!-- LibraryImport source generation (pipe probe) requires unsafe. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>

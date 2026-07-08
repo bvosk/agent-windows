@@ -184,11 +184,8 @@ public sealed class SnapshotBuilder
         return states;
     }
 
-    private static BoundingRect? ReadBounds(AutomationElement element)
-    {
-        var rect = element.Properties.BoundingRectangle.ValueOrDefault;
-        return rect.IsEmpty ? null : new BoundingRect(rect.X, rect.Y, rect.Width, rect.Height);
-    }
+    private static BoundingRect? ReadBounds(AutomationElement element) =>
+        RectConversions.ToBoundingRect(element.Properties.BoundingRectangle.ValueOrDefault);
 
     /// <summary>
     /// Reads the selected item names live; selection elements are not part of the

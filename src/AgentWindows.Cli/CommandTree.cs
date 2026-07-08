@@ -86,7 +86,7 @@ public static class CommandTree
         new("--timeout")
         {
             Description = "Timeout in milliseconds for the action to become possible.",
-            DefaultValueFactory = _ => 10_000,
+            DefaultValueFactory = _ => ProtocolDefaults.TimeoutMs,
         };
 
     private static Command BuildList(CommandContext context)
@@ -114,12 +114,12 @@ public static class CommandTree
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildLaunch(
-                    ResolveAppPath(parseResult.GetValue(appOption)!),
-                    parseResult.GetValue(argsOption),
-                    parseResult.GetValue(timeoutOption)
-                )
+            parseResult => new LaunchRequest
+            {
+                Path = ResolveAppPath(parseResult.GetValue(appOption)!),
+                Arguments = parseResult.GetValue(argsOption),
+                TimeoutMs = parseResult.GetValue(timeoutOption),
+            }
         );
         return command;
     }
@@ -144,12 +144,12 @@ public static class CommandTree
         command.Options.Add(hwndOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildAttach(
-                    parseResult.GetValue(windowOption),
-                    parseResult.GetValue(pidOption),
-                    parseResult.GetValue(hwndOption)
-                )
+            parseResult => new AttachRequest
+            {
+                Title = parseResult.GetValue(windowOption),
+                ProcessId = parseResult.GetValue(pidOption),
+                WindowHandle = parseResult.GetValue(hwndOption),
+            }
         );
         return command;
     }
@@ -177,12 +177,12 @@ public static class CommandTree
         command.Options.Add(scopeOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildSnapshot(
-                    parseResult.GetValue(interactiveOption),
-                    parseResult.GetValue(depthOption),
-                    parseResult.GetValue(scopeOption)
-                )
+            parseResult => new SnapshotRequest
+            {
+                InteractiveOnly = parseResult.GetValue(interactiveOption),
+                MaxDepth = parseResult.GetValue(depthOption),
+                ScopeRef = parseResult.GetValue(scopeOption),
+            }
         );
         return command;
     }
@@ -371,13 +371,13 @@ public static class CommandTree
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildScroll(
-                    parseResult.GetValue(refArgument),
-                    parseResult.GetValue(directionArgument)!,
-                    parseResult.GetValue(amountOption),
-                    parseResult.GetValue(timeoutOption)
-                )
+            parseResult => new ScrollRequest
+            {
+                Ref = parseResult.GetValue(refArgument),
+                Direction = RequestBuilder.ParseDirection(parseResult.GetValue(directionArgument)!),
+                Amount = parseResult.GetValue(amountOption),
+                TimeoutMs = parseResult.GetValue(timeoutOption),
+            }
         );
         return command;
     }
@@ -405,13 +405,13 @@ public static class CommandTree
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildWait(
-                    parseResult.GetValue(refArgument),
-                    parseResult.GetValue(textOption),
-                    parseResult.GetValue(goneOption),
-                    parseResult.GetValue(timeoutOption)
-                )
+            parseResult => new WaitRequest
+            {
+                Ref = parseResult.GetValue(refArgument),
+                Text = parseResult.GetValue(textOption),
+                Gone = parseResult.GetValue(goneOption),
+                TimeoutMs = parseResult.GetValue(timeoutOption),
+            }
         );
         return command;
     }
@@ -461,14 +461,14 @@ public static class CommandTree
         command.Options.Add(heightOption);
         context.Attach(
             command,
-            parseResult =>
-                RequestBuilder.BuildWindowAction(
-                    parseResult.GetValue(actionArgument)!,
-                    parseResult.GetValue(xOption),
-                    parseResult.GetValue(yOption),
-                    parseResult.GetValue(widthOption),
-                    parseResult.GetValue(heightOption)
-                )
+            parseResult => new WindowActionRequest
+            {
+                Action = RequestBuilder.ParseWindowAction(parseResult.GetValue(actionArgument)!),
+                X = parseResult.GetValue(xOption),
+                Y = parseResult.GetValue(yOption),
+                Width = parseResult.GetValue(widthOption),
+                Height = parseResult.GetValue(heightOption),
+            }
         );
         return command;
     }

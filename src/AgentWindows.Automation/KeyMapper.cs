@@ -6,10 +6,15 @@ namespace AgentWindows.Automation;
 public static class KeyMapper
 {
     private static readonly Dictionary<string, VirtualKeyShort> _namedKeys = new(
-        StringComparer.Ordinal
+        StringComparer.OrdinalIgnoreCase
     )
     {
         ["Enter"] = VirtualKeyShort.RETURN,
+        ["Return"] = VirtualKeyShort.RETURN,
+        ["Esc"] = VirtualKeyShort.ESCAPE,
+        ["Del"] = VirtualKeyShort.DELETE,
+        ["PgUp"] = VirtualKeyShort.PRIOR,
+        ["PgDn"] = VirtualKeyShort.NEXT,
         ["Tab"] = VirtualKeyShort.TAB,
         ["Escape"] = VirtualKeyShort.ESCAPE,
         ["Space"] = VirtualKeyShort.SPACE,

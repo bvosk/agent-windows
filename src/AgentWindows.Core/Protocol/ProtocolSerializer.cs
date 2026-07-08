@@ -21,11 +21,18 @@ public static class ProtocolSerializer
     public static string SerializeResponse(DaemonResponse response) =>
         JsonSerializer.Serialize(response, _options);
 
-    public static DaemonRequest? DeserializeRequest(string line)
+    public static DaemonRequest? DeserializeRequest(string line) =>
+        TryDeserialize<DaemonRequest>(line);
+
+    public static DaemonResponse? DeserializeResponse(string line) =>
+        TryDeserialize<DaemonResponse>(line);
+
+    private static T? TryDeserialize<T>(string line)
+        where T : class
     {
         try
         {
-            return JsonSerializer.Deserialize<DaemonRequest>(line, _options);
+            return JsonSerializer.Deserialize<T>(line, _options);
         }
         catch (JsonException)
         {
@@ -34,22 +41,6 @@ public static class ProtocolSerializer
         catch (NotSupportedException)
         {
             // Polymorphic payloads without a recognized discriminator land here.
-            return null;
-        }
-    }
-
-    public static DaemonResponse? DeserializeResponse(string line)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<DaemonResponse>(line, _options);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (NotSupportedException)
-        {
             return null;
         }
     }

@@ -10,5 +10,5 @@ public sealed record ScrollRequest : DaemonRequest
 
     public double Amount { get; init; } = 1;
 
-    public int TimeoutMs { get; init; } = 10_000;
+    public int TimeoutMs { get; init; } = ProtocolDefaults.TimeoutMs;
 }

@@ -30,4 +30,18 @@ public static class ElementRef
     }
 
     public static string Display(string bareRef) => $"@{bareRef}";
+
+    /// <summary>Extracts the numeric index from a bare ref ("e5" -> 5).</summary>
+    public static bool TryGetIndex(string bareRef, out int index)
+    {
+        index = 0;
+        return bareRef is { Length: > 1 }
+            && bareRef[0] == 'e'
+            && int.TryParse(
+                bareRef.AsSpan(1),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out index
+            );
+    }
 }

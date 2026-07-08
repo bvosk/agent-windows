@@ -52,6 +52,28 @@ public sealed class RequestDispatcher(IAutomationSession session)
     private static string? NormalizeOptionalRef(string? input) =>
         input is null ? null : NormalizeRef(input);
 
+    private static void ValidateWindowAction(WindowActionRequest request)
+    {
+        if (request.Action == WindowActionKind.Move && (request.X is null || request.Y is null))
+        {
+            throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "window move requires --x and --y."
+            );
+        }
+
+        if (
+            request.Action == WindowActionKind.Resize
+            && (request.Width is null || request.Height is null)
+        )
+        {
+            throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "window resize requires --width and --height."
+            );
+        }
+    }
+
     private DaemonResponse Execute(DaemonRequest request) =>
         request switch
         {
@@ -64,9 +86,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
                     Window = _session.Launch(r.Path, r.Arguments, Timeout(r.TimeoutMs)),
                 }
             ),
-            AttachRequest r => DaemonResponse.Success(
-                new WindowPayload { Window = _session.Attach(r.Title, r.ProcessId, r.WindowHandle) }
-            ),
+            AttachRequest r => ExecuteAttach(r),
             SnapshotRequest r => ExecuteSnapshot(r),
             ClickRequest r => ExecuteClick(r),
             FillRequest r => ExecuteFill(r),
@@ -76,18 +96,8 @@ public sealed class RequestDispatcher(IAutomationSession session)
             ToggleRequest r => ExecuteToggle(r),
             ScrollRequest r => ExecuteScroll(r),
             WaitRequest r => ExecuteWait(r),
-            ScreenshotRequest r => DaemonResponse.Success(
-                new ScreenshotPayload
-                {
-                    Path = _session.CaptureScreenshot(NormalizeOptionalRef(r.Ref), r.OutputPath),
-                }
-            ),
-            WindowActionRequest r => DaemonResponse.Success(
-                new WindowPayload
-                {
-                    Window = _session.PerformWindowAction(r.Action, r.X, r.Y, r.Width, r.Height),
-                }
-            ),
+            ScreenshotRequest r => ExecuteScreenshot(r),
+            WindowActionRequest r => ExecuteWindowAction(r),
             CloseRequest r => ExecuteClose(r),
             StatusRequest => DaemonResponse.Success(
                 new StatusPayload { Status = _session.GetStatus() }
@@ -98,6 +108,57 @@ public sealed class RequestDispatcher(IAutomationSession session)
                 $"Unsupported request type '{request.GetType().Name}'."
             ),
         };
+
+    private DaemonResponse ExecuteAttach(AttachRequest request) =>
+        request is { Title: null, ProcessId: null, WindowHandle: null }
+            ? throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "attach requires --window <title>, --pid, or --hwnd."
+            )
+            : DaemonResponse.Success(
+                new WindowPayload
+                {
+                    Window = _session.Attach(
+                        request.Title,
+                        request.ProcessId,
+                        request.WindowHandle
+                    ),
+                }
+            );
+
+    private DaemonResponse ExecuteScreenshot(ScreenshotRequest request) =>
+        !Path.IsPathRooted(request.OutputPath)
+            ? throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "screenshot requires an absolute output path (the CLI resolves relative paths "
+                    + "against the caller's directory; the daemon's differs)."
+            )
+            : DaemonResponse.Success(
+                new ScreenshotPayload
+                {
+                    Path = _session.CaptureScreenshot(
+                        NormalizeOptionalRef(request.Ref),
+                        request.OutputPath
+                    ),
+                }
+            );
+
+    private DaemonResponse ExecuteWindowAction(WindowActionRequest request)
+    {
+        ValidateWindowAction(request);
+        return DaemonResponse.Success(
+            new WindowPayload
+            {
+                Window = _session.PerformWindowAction(
+                    request.Action,
+                    request.X,
+                    request.Y,
+                    request.Width,
+                    request.Height
+                ),
+            }
+        );
+    }
 
     private DaemonResponse ExecuteSnapshot(SnapshotRequest request)
     {
