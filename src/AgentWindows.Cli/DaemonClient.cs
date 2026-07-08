@@ -108,6 +108,12 @@ public sealed class DaemonClient(string session)
             FileName = executable,
             UseShellExecute = false,
             CreateNoWindow = true,
+            // Give the daemon its own stdio pipes. Without this it inherits the
+            // CLI's console handles, and callers that redirect the CLI's output
+            // never see EOF because the long-lived daemon keeps the pipe open.
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
         };
         startInfo.ArgumentList.Add("daemon");
         startInfo.ArgumentList.Add("run");

@@ -18,10 +18,12 @@ public sealed class SnapshotBuilder
         ControlType.Button,
         ControlType.CheckBox,
         ControlType.ComboBox,
+        ControlType.DataGrid,
         ControlType.DataItem,
         ControlType.Document,
         ControlType.Edit,
         ControlType.Hyperlink,
+        ControlType.List,
         ControlType.ListItem,
         ControlType.MenuItem,
         ControlType.RadioButton,
@@ -29,7 +31,9 @@ public sealed class SnapshotBuilder
         ControlType.Spinner,
         ControlType.SplitButton,
         ControlType.TabItem,
+        ControlType.Table,
         ControlType.Thumb,
+        ControlType.Tree,
         ControlType.TreeItem,
     ];
 
@@ -64,7 +68,29 @@ public sealed class SnapshotBuilder
     private static string? ReadValue(AutomationElement element)
     {
         var pattern = element.Patterns.Value.PatternOrDefault;
-        return pattern is null ? null : Truncate(pattern.Value.ValueOrDefault, _maxValueLength);
+        return pattern is null
+            ? ReadSelectionValue(element)
+            : Truncate(pattern.Value.ValueOrDefault, _maxValueLength);
+    }
+
+    /// <summary>
+    /// Combo boxes, lists, and trees often lack ValuePattern (e.g. non-editable WPF
+    /// combos); surface their selected item names as the value instead.
+    /// </summary>
+    private static string? ReadSelectionValue(AutomationElement element)
+    {
+        var selection = element.Patterns.Selection.PatternOrDefault;
+        var selected = selection?.Selection.ValueOrDefault;
+        if (selected is null || selected.Length == 0)
+        {
+            return null;
+        }
+
+        var names = selected
+            .Select(item => item.Properties.Name.ValueOrDefault)
+            .Where(name => !string.IsNullOrEmpty(name));
+        var joined = string.Join(", ", names);
+        return joined.Length == 0 ? null : Truncate(joined, _maxValueLength);
     }
 
     private static List<string> CollectStates(AutomationElement element)

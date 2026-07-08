@@ -36,3 +36,20 @@ jobs:
         with:
           name: coverage-report
           path: artifacts/coverage
+
+  e2e:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build AgentWindows.slnx
+
+      - name: End-to-end tests
+        run: dotnet test tests/AgentWindows.E2e.Tests --no-build
+        env:
+          AGENT_WINDOWS_E2E: "1"

@@ -116,14 +116,14 @@ public sealed class FlaUiSession : IAutomationSession
         var mouseButton = ToMouseButton(button);
         if (target.ElementRef is null)
         {
-            Mouse.MoveTo(new System.Drawing.Point(target.X ?? 0, target.Y ?? 0));
+            Mouse.Position = new System.Drawing.Point(target.X ?? 0, target.Y ?? 0);
             ClickCurrentPosition(mouseButton, doubleClick);
             return;
         }
 
         var element = Resolve(target.ElementRef);
         WaitUntilActionable(element, target.ElementRef, timeout);
-        Mouse.MoveTo(GetClickablePoint(element, target.ElementRef));
+        Mouse.Position = GetClickablePoint(element, target.ElementRef);
         ClickCurrentPosition(mouseButton, doubleClick);
     }
 
@@ -470,8 +470,9 @@ public sealed class FlaUiSession : IAutomationSession
         var rect = element.Properties.BoundingRectangle.ValueOrDefault;
         if (!rect.IsEmpty)
         {
-            Mouse.MoveTo(
-                new System.Drawing.Point(rect.X + (rect.Width / 2), rect.Y + (rect.Height / 2))
+            Mouse.Position = new System.Drawing.Point(
+                rect.X + (rect.Width / 2),
+                rect.Y + (rect.Height / 2)
             );
         }
 

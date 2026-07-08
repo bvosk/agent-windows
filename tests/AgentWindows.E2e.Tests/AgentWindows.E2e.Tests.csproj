@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows</TargetFramework>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="coverlet.MTP" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3.mtp-v2" />
+        <ProjectReference Include="../../src/AgentWindows.Core/AgentWindows.Core.csproj" />
+        <!-- Build-order only: the tests spawn these executables from their bin folders. -->
+        <ProjectReference
+            Include="../../src/AgentWindows.Cli/AgentWindows.Cli.csproj"
+            ReferenceOutputAssembly="false"
+        />
+        <ProjectReference
+            Include="../AgentWindows.E2eTarget/AgentWindows.E2eTarget.csproj"
+            ReferenceOutputAssembly="false"
+        />
+    </ItemGroup>
+</Project>

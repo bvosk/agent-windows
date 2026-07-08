@@ -9,5 +9,7 @@
         <Project Path="tests/AgentWindows.Core.Tests/AgentWindows.Core.Tests.csproj" />
         <Project Path="tests/AgentWindows.Cli.Tests/AgentWindows.Cli.Tests.csproj" />
         <Project Path="tests/AgentWindows.Architecture.Tests/AgentWindows.Architecture.Tests.csproj" />
+        <Project Path="tests/AgentWindows.E2eTarget/AgentWindows.E2eTarget.csproj" />
+        <Project Path="tests/AgentWindows.E2e.Tests/AgentWindows.E2e.Tests.csproj" />
     </Folder>
 </Solution>

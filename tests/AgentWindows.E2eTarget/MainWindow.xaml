@@ -1,0 +1,67 @@
+<Window
+    x:Class="AgentWindows.E2eTarget.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="AgentWindows E2E Target"
+    Width="520"
+    Height="640"
+    WindowStartupLocation="CenterScreen"
+>
+    <StackPanel Margin="12">
+        <TextBox
+            x:Name="InputBox"
+            AutomationProperties.AutomationId="InputBox"
+            AutomationProperties.Name="Input"
+            Margin="0,0,0,8"
+        />
+        <Button
+            x:Name="SubmitButton"
+            AutomationProperties.AutomationId="SubmitButton"
+            Content="Submit"
+            IsDefault="True"
+            Click="OnSubmitClick"
+            Margin="0,0,0,8"
+        />
+        <Button
+            x:Name="SlowButton"
+            AutomationProperties.AutomationId="SlowButton"
+            Content="Start slow task"
+            Click="OnSlowClick"
+            Margin="0,0,0,8"
+        />
+        <TextBlock
+            x:Name="ResultLabel"
+            AutomationProperties.AutomationId="ResultLabel"
+            Text="Ready"
+            Margin="0,0,0,8"
+        />
+        <CheckBox
+            x:Name="FeatureCheck"
+            AutomationProperties.AutomationId="FeatureCheck"
+            Content="Feature flag"
+            Margin="0,0,0,8"
+        />
+        <ComboBox
+            x:Name="ColorCombo"
+            AutomationProperties.AutomationId="ColorCombo"
+            SelectedIndex="0"
+            Margin="0,0,0,8"
+        >
+            <ComboBoxItem Content="Red" />
+            <ComboBoxItem Content="Green" />
+            <ComboBoxItem Content="Blue" />
+        </ComboBox>
+        <TreeView
+            x:Name="NavTree"
+            AutomationProperties.AutomationId="NavTree"
+            Height="90"
+            Margin="0,0,0,8"
+        >
+            <TreeViewItem AutomationProperties.AutomationId="FruitsNode" Header="Fruits">
+                <TreeViewItem Header="Apple" />
+                <TreeViewItem Header="Banana" />
+            </TreeViewItem>
+        </TreeView>
+        <ListBox x:Name="BigList" AutomationProperties.AutomationId="BigList" Height="120" />
+    </StackPanel>
+</Window>

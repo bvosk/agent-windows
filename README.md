@@ -68,7 +68,8 @@ Requires Windows and the .NET 10 SDK ([mise](https://mise.jdx.dev) manages it):
 ```
 mise run setup      # install tools, restore, git hooks
 mise run build      # analyzer-enforced build (warnings are errors)
-mise run test       # all tests
+mise run test       # unit + architecture tests (e2e tests auto-skip)
+mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target app
 mise run coverage   # tests + HTML coverage report under artifacts/coverage
 mise run format     # CSharpier
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
@@ -88,3 +89,4 @@ The tool package needs the .NET 10 runtime; the self-contained `artifacts\publis
 - `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA: tree walking with ref assignment, pattern-based actions with retry/actionability, elevation detection. Verified by integration smoke tests, excluded from unit coverage.
 - `src/AgentWindows.Cli` — System.CommandLine front end, daemon host (named-pipe server), daemon client with auto-spawn, output rendering.
 - Architecture tests (NetArchTest) enforce the layering: Core never references FlaUI or the other projects.
+- `tests/AgentWindows.E2eTarget` + `tests/AgentWindows.E2e.Tests` — end-to-end suite: a bundled WPF app with stable AutomationIds, driven by spawning the real CLI (auto-spawned daemon, unique `--session` per test class, assertions on the `--json` envelope). Gated behind `AGENT_WINDOWS_E2E=1` so plain `dotnet test` runs stay headless; run via `mise run e2e` or the CI e2e job.

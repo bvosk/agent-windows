@@ -29,6 +29,14 @@ run = "dotnet build AgentWindows.slnx"
 description = "Run all tests"
 run = "dotnet test AgentWindows.slnx"
 
+[tasks.e2e]
+description = "Run end-to-end tests: the real CLI drives the bundled WPF target app"
+run = '''
+set -e
+dotnet build AgentWindows.slnx
+AGENT_WINDOWS_E2E=1 dotnet test tests/AgentWindows.E2e.Tests --no-build
+'''
+
 [tasks.coverage]
 description = "Run tests with coverage and generate an HTML report"
 run = '''
