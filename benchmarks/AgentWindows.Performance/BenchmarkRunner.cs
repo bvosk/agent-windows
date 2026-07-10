@@ -12,6 +12,20 @@ internal sealed class BenchmarkRunner(
     private readonly int _samples = samples;
     private readonly int _warmups = warmups;
 
+    public async Task PreflightAsync()
+    {
+        foreach (var scenario in CreateScenarios())
+        {
+            await PreflightEndpointAsync(scenario, _candidate, candidate: true)
+                .ConfigureAwait(false);
+            if (_reference is not null)
+            {
+                await PreflightEndpointAsync(scenario, _reference, candidate: false)
+                    .ConfigureAwait(false);
+            }
+        }
+    }
+
     public async Task<IReadOnlyList<BenchmarkResult>> RunAsync()
     {
         var scenarios = CreateScenarios();
@@ -85,6 +99,29 @@ internal sealed class BenchmarkRunner(
             Score = reference is null ? null : (candidate.Median / reference.Median) * 100,
             Advisories = advisories,
         };
+    }
+
+    private static async Task PreflightEndpointAsync(
+        Scenario scenario,
+        CliEndpoint endpoint,
+        bool candidate
+    )
+    {
+        var endpointName = candidate ? "candidate" : "reference";
+        try
+        {
+            await scenario.Prepare(endpoint).ConfigureAwait(false);
+            _ = candidate
+                ? await scenario.Candidate(endpoint).ConfigureAwait(false)
+                : await scenario.Reference(endpoint).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Performance preflight failed for {endpointName} scenario '{scenario.Id}'.",
+                ex
+            );
+        }
     }
 
     private static IReadOnlyList<string> BuildAdvisories(

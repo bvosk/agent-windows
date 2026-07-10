@@ -7,6 +7,7 @@ internal sealed class CliEndpoint : IAsyncDisposable
 {
     private readonly string _cliPath;
     private readonly string _coldSession;
+    private readonly string _label;
     private readonly string _session;
     private readonly string _targetPath;
     private readonly Dictionary<string, string> _refs = new(StringComparer.Ordinal);
@@ -15,6 +16,7 @@ internal sealed class CliEndpoint : IAsyncDisposable
     public CliEndpoint(string cliPath, string targetPath, string label)
     {
         _cliPath = Path.GetFullPath(cliPath);
+        _label = label;
         _targetPath = Path.GetFullPath(targetPath);
         _session = $"perf-{label}-{Guid.NewGuid():N}";
         _coldSession = $"{_session}-cold";
@@ -25,12 +27,16 @@ internal sealed class CliEndpoint : IAsyncDisposable
             ? elementRef
             : throw new InvalidOperationException($"No ref for '{automationId}'.");
 
-    public async Task StartAsync()
+    public async Task<int> StartAsync(int? targetProcessId = null)
     {
-        await RunOneShotAsync(["launch", "--app", _targetPath, "--timeout", "30000"])
-            .ConfigureAwait(false);
+        var target = targetProcessId is null
+            ? await RunOneShotAsync(["launch", "--app", _targetPath, "--timeout", "30000"])
+                .ConfigureAwait(false)
+            : await RunOneShotAsync(["attach", "--pid", targetProcessId.Value.ToString()])
+                .ConfigureAwait(false);
         _repl = StartProcess(["repl", "--session", _session], redirect: true);
         await RefreshRefsAsync().ConfigureAwait(false);
+        return targetProcessId ?? ReadProcessId(target.ResponseLine);
     }
 
     public async Task RefreshRefsAsync()
@@ -51,7 +57,7 @@ internal sealed class CliEndpoint : IAsyncDisposable
             await process.StandardOutput.ReadLineAsync().ConfigureAwait(false)
             ?? throw new InvalidOperationException("REPL closed before returning a response.");
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        EnsureSuccess(line);
+        EnsureSuccess(line, command);
         return new CommandSample(elapsed, line);
     }
 
@@ -95,7 +101,7 @@ internal sealed class CliEndpoint : IAsyncDisposable
             );
         }
 
-        EnsureSuccess(output);
+        EnsureSuccess(output, string.Join(' ', arguments));
         return new CommandSample(elapsed, output);
     }
 
@@ -131,12 +137,14 @@ internal sealed class CliEndpoint : IAsyncDisposable
         }
     }
 
-    private static void EnsureSuccess(string responseLine)
+    private void EnsureSuccess(string responseLine, string command)
     {
         using var document = JsonDocument.Parse(responseLine);
         if (!document.RootElement.GetProperty("ok").GetBoolean())
         {
-            throw new InvalidOperationException($"CLI returned failure: {responseLine}");
+            throw new InvalidOperationException(
+                $"CLI '{_label}' command '{command}' returned failure: {responseLine}"
+            );
         }
     }
 
@@ -159,5 +167,15 @@ internal sealed class CliEndpoint : IAsyncDisposable
                 IndexRefs(child);
             }
         }
+    }
+
+    private static int ReadProcessId(string responseLine)
+    {
+        using var document = JsonDocument.Parse(responseLine);
+        return document
+            .RootElement.GetProperty("payload")
+            .GetProperty("window")
+            .GetProperty("processId")
+            .GetInt32();
     }
 }
