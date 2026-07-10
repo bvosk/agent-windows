@@ -27,7 +27,8 @@ internal sealed class CliEndpoint : IAsyncDisposable
 
     public async Task StartAsync()
     {
-        await RunOneShotAsync(["launch", "--app", _targetPath]).ConfigureAwait(false);
+        await RunOneShotAsync(["launch", "--app", _targetPath, "--timeout", "30000"])
+            .ConfigureAwait(false);
         _repl = StartProcess(["repl", "--session", _session], redirect: true);
         await RefreshRefsAsync().ConfigureAwait(false);
     }
