@@ -186,7 +186,7 @@ internal static class FlaUiElementActions
         TimeSpan timeout
     ) =>
         Poller.WaitUntil(
-            () => ContainsText(root, text) != untilGone,
+            () => TryContainsText(root, text, out var contains) && contains != untilGone,
             timeout,
             untilGone
                 ? $"Text '{text}' was still present after {timeout.TotalSeconds:0}s."
@@ -356,13 +356,13 @@ internal static class FlaUiElementActions
         }
     }
 
-    private static bool ContainsText(AutomationElement root, string text)
+    private static bool TryContainsText(AutomationElement root, string text, out bool contains)
     {
-        // One bulk cross-process fetch of every descendant name per poll tick,
-        // instead of one COM round-trip per element.
+        // Cache each returned element's name in the native descendant query. Subtree scope
+        // would redundantly cache every returned descendant's descendants as well.
         var cacheRequest = new CacheRequest
         {
-            TreeScope = TreeScope.Subtree,
+            TreeScope = TreeScope.Element,
             TreeFilter = TrueCondition.Default,
             AutomationElementMode = AutomationElementMode.None,
         };
@@ -372,7 +372,7 @@ internal static class FlaUiElementActions
             using (cacheRequest.Activate())
             {
                 var descendants = root.FindAllDescendants();
-                return Array.Exists(
+                contains = Array.Exists(
                     descendants,
                     descendant =>
                         descendant.Properties.Name.ValueOrDefault?.Contains(
@@ -380,10 +380,12 @@ internal static class FlaUiElementActions
                             StringComparison.OrdinalIgnoreCase
                         ) == true
                 );
+                return true;
             }
         }
         catch (COMException)
         {
+            contains = false;
             return false;
         }
     }

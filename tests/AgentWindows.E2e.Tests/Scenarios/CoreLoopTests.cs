@@ -1,4 +1,5 @@
 using AgentWindows.E2E.Tests.Infrastructure;
+using AgentWindows.Core.Session;
 using Shouldly;
 using Xunit;
 
@@ -49,14 +50,33 @@ public sealed class CoreLoopTests(TargetAppFixture fixture) : IClassFixture<Targ
         (await _fixture.Cli.RunAsync("fill", $"@{inputRef}", "clicked")).ShouldSucceed();
         (await _fixture.Cli.RunAsync("click", $"@{submitRef}")).ShouldSucceed();
 
+        var after = await _fixture.SnapshotAsync();
+        after.Root.RequireByAutomationId("ResultLabel").Name.ShouldBe("Submitted: clicked");
+
         var wait = await _fixture.Cli.RunAsync(
             "wait",
             "--text",
-            "Submitted: clicked",
+            "SUBMITTED: CLICK",
             "--timeout",
             "5000"
         );
         wait.ShouldSucceed();
+
+        var stillPresent = await _fixture.Cli.RunAsync(
+            "wait",
+            "--text",
+            "Submitted: clicked",
+            "--gone",
+            "--timeout",
+            "250"
+        );
+        stillPresent.ExitCode.ShouldBe(1);
+        stillPresent.Response.ShouldNotBeNull();
+        stillPresent.Response.ErrorCode.ShouldBe(ErrorCodes.Timeout);
+
+        (
+            await _fixture.Cli.RunAsync("wait", "--text", "Ready", "--gone", "--timeout", "5000")
+        ).ShouldSucceed();
     }
 
     [E2EFact]
