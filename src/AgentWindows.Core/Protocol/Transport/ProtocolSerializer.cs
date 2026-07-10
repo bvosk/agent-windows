@@ -1,5 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using AgentWindows.Core.Model;
 
 namespace AgentWindows.Core.Protocol.Transport;
 
@@ -13,6 +15,12 @@ public static class ProtocolSerializer
     )
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Converters =
+        {
+            new JsonStringEnumConverter<MouseButtonKind>(JsonNamingPolicy.CamelCase),
+            new JsonStringEnumConverter<ScrollDirection>(JsonNamingPolicy.CamelCase),
+            new JsonStringEnumConverter<WindowActionKind>(JsonNamingPolicy.CamelCase),
+        },
     };
 
     public static string SerializeRequest(DaemonRequest request) =>

@@ -1,0 +1,10 @@
+bad-request
+elevated-target
+internal-error
+launch-failed
+no-target
+not-found
+pattern-unsupported
+stale-ref
+timeout
+unknown-ref

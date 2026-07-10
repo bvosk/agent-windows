@@ -1,0 +1,7 @@
+{"ok":true,"payload":{"kind":"windowList","windows":[{"title":"Calc","windowHandle":42,"processId":7,"processName":"calc","isElevated":false,"bounds":{"x":1,"y":2,"width":800,"height":600}}]}}
+{"ok":true,"payload":{"kind":"window","window":{"title":"Calc","windowHandle":42,"processId":7,"processName":"calc","isElevated":false,"bounds":{"x":1,"y":2,"width":800,"height":600}}}}
+{"ok":true,"payload":{"kind":"snapshot","root":{"role":"window","name":"Calc","ref":"e1","states":[],"children":[{"role":"button","name":"Five","ref":"e2","states":[],"children":[]}]},"generation":3}}
+{"ok":true,"payload":{"kind":"screenshot","path":"out.png"}}
+{"ok":true,"payload":{"kind":"status","status":{"daemonProcessId":99,"target":{"title":"Calc","windowHandle":42,"processId":7,"processName":"calc","isElevated":false,"bounds":{"x":1,"y":2,"width":800,"height":600}},"snapshotGeneration":3,"refCount":2}}}
+{"ok":true,"payload":{"kind":"ack","detail":"done"}}
+{"ok":false,"errorCode":"bad-request","message":"invalid input"}

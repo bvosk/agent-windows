@@ -1,0 +1,358 @@
+{
+  "type": "object",
+  "required": [
+    "cmd"
+  ],
+  "anyOf": [
+    {
+      "properties": {
+        "cmd": {
+          "const": "list"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "launch"
+        },
+        "path": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "attach"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "processId": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "windowHandle": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "snapshot"
+        },
+        "interactiveOnly": {
+          "type": "boolean"
+        },
+        "maxDepth": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "scopeRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "click"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "x": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "y": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "button": {
+          "enum": [
+            "left",
+            "right",
+            "middle"
+          ]
+        },
+        "doubleClick": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "fill"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "press"
+        },
+        "keys": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "keys"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "select"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "item": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref",
+        "item"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "expand"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "collapse": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "toggle"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "state": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ref"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "scroll"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        },
+        "amount": {
+          "type": "number"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "direction"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "wait"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gone": {
+          "type": "boolean"
+        },
+        "timeoutMs": {
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "screenshot"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "outputPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "outputPath"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "window"
+        },
+        "action": {
+          "enum": [
+            "focus",
+            "move",
+            "resize",
+            "maximize",
+            "minimize",
+            "restore"
+          ]
+        },
+        "x": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "y": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "close"
+        },
+        "force": {
+          "type": "boolean"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "status"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "shutdown"
+        }
+      }
+    }
+  ]
+}

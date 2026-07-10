@@ -54,8 +54,9 @@ public sealed class ProtocolSerializerTests
             new ClickRequest { Ref = "e5", Button = MouseButtonKind.Right }
         );
 
-        json.ShouldContain("\"button\":\"right\"");
-        json.ShouldContain("\"cmd\":\"click\"");
+        json.ShouldBe(
+            """{"cmd":"click","ref":"e5","button":"right","doubleClick":false,"timeoutMs":10000}"""
+        );
     }
 
     [Theory]

@@ -1,0 +1,17 @@
+{"cmd":"list"}
+{"cmd":"launch","path":"notepad.exe","arguments":"file.txt","timeoutMs":10000}
+{"cmd":"attach","title":"Calc"}
+{"cmd":"snapshot","interactiveOnly":true,"maxDepth":5}
+{"cmd":"click","ref":"e2","button":"left","doubleClick":true,"timeoutMs":10000}
+{"cmd":"fill","ref":"e3","text":"hello","timeoutMs":10000}
+{"cmd":"press","keys":"Enter"}
+{"cmd":"select","ref":"e4","item":"Red","timeoutMs":10000}
+{"cmd":"expand","ref":"e5","collapse":true,"timeoutMs":10000}
+{"cmd":"toggle","ref":"e6","state":false,"timeoutMs":10000}
+{"cmd":"scroll","direction":"down","amount":2,"timeoutMs":10000}
+{"cmd":"wait","text":"Done","gone":true,"timeoutMs":10000}
+{"cmd":"screenshot","ref":"e7","outputPath":"out.png"}
+{"cmd":"window","action":"resize","width":800,"height":600}
+{"cmd":"close","force":true}
+{"cmd":"status"}
+{"cmd":"shutdown"}

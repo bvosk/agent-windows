@@ -1,0 +1,356 @@
+{
+  "type": "object",
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "errorCode": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "payload": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "kind"
+      ],
+      "anyOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "windowList"
+            },
+            "windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "windowHandle": {
+                    "type": "integer"
+                  },
+                  "processId": {
+                    "type": "integer"
+                  },
+                  "processName": {
+                    "type": "string"
+                  },
+                  "isElevated": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "bounds": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "x": {
+                        "type": "integer"
+                      },
+                      "y": {
+                        "type": "integer"
+                      },
+                      "width": {
+                        "type": "integer"
+                      },
+                      "height": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "title",
+                  "windowHandle",
+                  "processId",
+                  "processName"
+                ]
+              }
+            }
+          },
+          "required": [
+            "windows"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "window"
+            },
+            "window": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "windowHandle": {
+                  "type": "integer"
+                },
+                "processId": {
+                  "type": "integer"
+                },
+                "processName": {
+                  "type": "string"
+                },
+                "isElevated": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "bounds": {
+                  "$ref": "#/properties/payload/anyOf/0/properties/windows/items/properties/bounds"
+                }
+              },
+              "required": [
+                "title",
+                "windowHandle",
+                "processId",
+                "processName"
+              ]
+            }
+          },
+          "required": [
+            "window"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "snapshot"
+            },
+            "root": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "automationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "states": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "bounds": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    },
+                    "y": {
+                      "type": "integer"
+                    },
+                    "width": {
+                      "type": "integer"
+                    },
+                    "height": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "children": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "automationId": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "ref": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "states": {
+                        "$ref": "#/properties/payload/anyOf/2/properties/root/properties/states"
+                      },
+                      "bounds": {
+                        "$ref": "#/properties/payload/anyOf/2/properties/root/properties/bounds"
+                      },
+                      "children": {
+                        "$ref": "#/properties/payload/anyOf/2/properties/root/properties/children"
+                      }
+                    },
+                    "required": [
+                      "role"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "role"
+              ]
+            },
+            "generation": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "root",
+            "generation"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "screenshot"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "status"
+            },
+            "status": {
+              "type": "object",
+              "properties": {
+                "daemonProcessId": {
+                  "type": "integer"
+                },
+                "target": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "windowHandle": {
+                      "type": "integer"
+                    },
+                    "processId": {
+                      "type": "integer"
+                    },
+                    "processName": {
+                      "type": "string"
+                    },
+                    "isElevated": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "bounds": {
+                      "$ref": "#/properties/payload/anyOf/0/properties/windows/items/properties/bounds"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "windowHandle",
+                    "processId",
+                    "processName"
+                  ]
+                },
+                "snapshotGeneration": {
+                  "type": "integer"
+                },
+                "refCount": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "daemonProcessId",
+                "snapshotGeneration",
+                "refCount"
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "ack"
+            },
+            "detail": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "elapsedMs": {
+      "type": [
+        "number",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}
