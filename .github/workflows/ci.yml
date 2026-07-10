@@ -21,6 +21,10 @@ jobs:
       - name: Check formatting
         run: dotnet csharpier check .
 
+      - name: Test performance commit discovery
+        shell: pwsh
+        run: ./scripts/performance/Test-CommitMatrix.ps1
+
       - name: Build (warnings are errors)
         run: dotnet build AgentWindows.slnx
 

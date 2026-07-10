@@ -15,7 +15,8 @@ using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
 using FlaUI.Core.Conditions;
 using FlaUI.Core.Definitions;
-using FlaUI.Core.Input;
+using FlaUI.Core.EventHandlers;
+using FlaUI.Core.Identifiers;
 using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
 
@@ -27,6 +28,7 @@ public sealed class FlaUiSession : IAutomationSession
     private Dictionary<string, AutomationElement> _refs = [];
     private Application? _app;
     private Window? _target;
+    private WindowInfo? _targetInfo;
     private int _generation;
     private int _nextRefIndex = 1;
 
@@ -74,8 +76,9 @@ public sealed class FlaUiSession : IAutomationSession
         }
 
         _app = app;
-        SetTarget(window);
-        return ToWindowInfo(window);
+        var info = ToWindowInfo(window);
+        SetTarget(window, info);
+        return info;
     }
 
     public WindowInfo Attach(string? title, int? processId, long? windowHandle)
@@ -91,7 +94,7 @@ public sealed class FlaUiSession : IAutomationSession
         }
 
         var element = _automation.FromHandle(new IntPtr(info.WindowHandle));
-        SetTarget(element.AsWindow());
+        SetTarget(element.AsWindow(), info);
         return info;
     }
 
@@ -106,6 +109,66 @@ public sealed class FlaUiSession : IAutomationSession
         return new SnapshotResult { Root = result.Root, Generation = _generation };
     }
 
+    public FindResult Find(ElementSelector selector, bool all)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        var matches = FindElements(selector, all || selector.RequireUnique);
+        var error = matches.Length switch
+        {
+            0 => SelectorNotFound(selector),
+            _ when selector.RequireUnique && matches.Length != 1 => new AutomationException(
+                ErrorCodes.Ambiguous,
+                $"Selector matched {matches.Length} elements; refine it or omit --require-unique."
+            ),
+            _ => null,
+        };
+
+        return error is null
+            ? new FindResult { Matches = matches.Select(CreateFindNode).ToArray() }
+            : throw error;
+    }
+
+    public void Activate(ElementTarget target, TimeSpan timeout)
+    {
+        var element = Resolve(target);
+        if (element.Patterns.Invoke.PatternOrDefault is { } invoke)
+        {
+            invoke.Invoke();
+            return;
+        }
+
+        if (element.Patterns.Toggle.PatternOrDefault is { } toggle)
+        {
+            toggle.Toggle();
+            return;
+        }
+
+        if (element.Patterns.SelectionItem.PatternOrDefault is { } selectionItem)
+        {
+            selectionItem.Select();
+            return;
+        }
+
+        if (element.Patterns.ExpandCollapse.PatternOrDefault is { } expandCollapse)
+        {
+            if (expandCollapse.ExpandCollapseState.ValueOrDefault == ExpandCollapseState.Collapsed)
+            {
+                expandCollapse.Expand();
+            }
+            else
+            {
+                expandCollapse.Collapse();
+            }
+
+            return;
+        }
+
+        throw PatternUnsupported(
+            Display(target),
+            "Invoke, Toggle, SelectionItem, or ExpandCollapse"
+        );
+    }
+
     public void Click(
         ClickTarget target,
         MouseButtonKind button,
@@ -114,24 +177,28 @@ public sealed class FlaUiSession : IAutomationSession
     )
     {
         ArgumentNullException.ThrowIfNull(target);
-        var mouseButton = ToMouseButton(button);
-        if (target.ElementRef is null)
+        if (target.ElementRef is null && target.Selector is null)
         {
-            Mouse.Position = new System.Drawing.Point(target.X ?? 0, target.Y ?? 0);
-            ClickCurrentPosition(mouseButton, doubleClick);
+            NativeInput.Click(
+                new System.Drawing.Point(target.X ?? 0, target.Y ?? 0),
+                button,
+                doubleClick
+            );
             return;
         }
 
-        var element = Resolve(target.ElementRef);
-        WaitUntilActionable(element, target.ElementRef, timeout);
-        Mouse.Position = GetClickablePoint(element, target.ElementRef);
-        ClickCurrentPosition(mouseButton, doubleClick);
+        var elementTarget = target.ElementRef is not null
+            ? ElementTarget.ForRef(target.ElementRef)
+            : ElementTarget.ForSelector(target.Selector!);
+        var element = Resolve(elementTarget);
+        var display = Display(elementTarget);
+        WaitUntilActionable(element, display, timeout);
+        NativeInput.Click(GetClickablePoint(element, display), button, doubleClick);
     }
 
-    public void Fill(string elementRef, string text, TimeSpan timeout)
+    public void Fill(ElementTarget target, string text, TimeSpan timeout)
     {
-        var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
+        var element = Resolve(target);
         var valuePattern = element.Patterns.Value.PatternOrDefault;
         if (valuePattern is not null && !valuePattern.IsReadOnly.ValueOrDefault)
         {
@@ -140,69 +207,53 @@ public sealed class FlaUiSession : IAutomationSession
         }
 
         element.Focus();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-        Keyboard.Type(text);
+        NativeInput.Press(KeyGesture.Parse("Ctrl+A"));
+        NativeInput.TypeText(text);
     }
 
     public void Press(KeyGesture gesture)
     {
         ArgumentNullException.ThrowIfNull(gesture);
-        var modifiers = gesture.Modifiers.Select(KeyMapper.ToVirtualKey).ToArray();
-        if (KeyMapper.TryMapKey(gesture.Key, out var key))
-        {
-            if (modifiers.Length > 0)
-            {
-                using (Keyboard.Pressing(modifiers))
-                {
-                    Keyboard.Type(key);
-                }
-            }
-            else
-            {
-                Keyboard.Type(key);
-            }
-
-            return;
-        }
-
-        if (modifiers.Length == 0 && gesture.Key.Length == 1)
-        {
-            Keyboard.Type(gesture.Key);
-            return;
-        }
-
-        throw new AutomationException(
-            ErrorCodes.BadRequest,
-            $"Unknown key '{gesture.Key}'. Use a named key (e.g. Enter, F5, PageDown) "
-                + "or a single character."
-        );
-    }
-
-    public void SelectItem(string elementRef, string item, TimeSpan timeout)
-    {
-        var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
         try
         {
-            SelectItemCore(element, item);
+            NativeInput.Press(gesture);
         }
-        catch (InvalidOperationException ex)
+        catch (ArgumentException ex)
         {
             throw new AutomationException(
-                ErrorCodes.NotFound,
-                $"No item '{item}' found in {ElementRef.Display(elementRef)}: {ex.Message}",
+                ErrorCodes.BadRequest,
+                $"Unknown key '{gesture.Key}'. Use a named key (e.g. Enter, F5, PageDown) "
+                    + "or a single character.",
                 ex
             );
         }
     }
 
-    public void Expand(string elementRef, bool collapse, TimeSpan timeout)
+    public void SelectItem(ElementTarget target, string item, TimeSpan timeout)
     {
-        var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
+        var element = Resolve(target);
+        var display = Display(target);
+        try
+        {
+            SelectItemCore(element, item, timeout);
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new AutomationException(
+                ErrorCodes.NotFound,
+                $"No item '{item}' found in {display}: {ex.Message}",
+                ex
+            );
+        }
+    }
+
+    public void Expand(ElementTarget target, bool collapse, TimeSpan timeout)
+    {
+        var element = Resolve(target);
+        var display = Display(target);
         var pattern =
             element.Patterns.ExpandCollapse.PatternOrDefault
-            ?? throw PatternUnsupported(elementRef, "ExpandCollapse");
+            ?? throw PatternUnsupported(display, "ExpandCollapse");
         if (collapse)
         {
             pattern.Collapse();
@@ -213,13 +264,12 @@ public sealed class FlaUiSession : IAutomationSession
         }
     }
 
-    public void Toggle(string elementRef, bool? desiredState, TimeSpan timeout)
+    public void Toggle(ElementTarget target, bool? desiredState, TimeSpan timeout)
     {
-        var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
+        var element = Resolve(target);
+        var display = Display(target);
         var pattern =
-            element.Patterns.Toggle.PatternOrDefault
-            ?? throw PatternUnsupported(elementRef, "Toggle");
+            element.Patterns.Toggle.PatternOrDefault ?? throw PatternUnsupported(display, "Toggle");
         var isOn = pattern.ToggleState.ValueOrDefault == ToggleState.On;
         if (desiredState is { } desired && desired == isOn)
         {
@@ -230,16 +280,16 @@ public sealed class FlaUiSession : IAutomationSession
     }
 
     public void Scroll(
-        string? elementRef,
+        ElementTarget? target,
         ScrollDirection direction,
         double amount,
         TimeSpan timeout
     )
     {
-        var element = elementRef is null ? RequireTarget() : Resolve(elementRef);
-        if (elementRef is not null)
+        var element = target is null ? RequireTarget() : Resolve(target);
+        if (target is not null)
         {
-            WaitUntilActionable(element, elementRef, timeout);
+            WaitUntilActionable(element, Display(target), timeout);
         }
 
         if (TryPatternScroll(element, direction, amount))
@@ -250,13 +300,37 @@ public sealed class FlaUiSession : IAutomationSession
         WheelScroll(element, direction, amount);
     }
 
-    public void WaitFor(string? elementRef, string? text, bool untilGone, TimeSpan timeout)
+    public void WaitFor(ElementTarget? target, string? text, bool untilGone, TimeSpan timeout)
     {
-        if (elementRef is not null)
+        if (target is not null)
         {
-            var element = Resolve(elementRef);
-            var display = ElementRef.Display(elementRef);
-            Poller.WaitUntil(
+            if (target.Selector is { } selector)
+            {
+                var eventRoot = selector.ScopeRef is null
+                    ? RequireTarget()
+                    : Resolve(selector.ScopeRef);
+                WaitWithEvents(
+                    eventRoot,
+                    TreeScope.Subtree,
+                    SelectorProperties(eventRoot, selector),
+                    () => SelectorExists(selector) != untilGone,
+                    timeout,
+                    untilGone
+                        ? $"{Display(target)} was still present after {timeout.TotalSeconds:0}s."
+                        : $"{Display(target)} did not appear within {timeout.TotalSeconds:0}s."
+                );
+                return;
+            }
+
+            var element = Resolve(target);
+            var display = Display(target);
+            WaitWithEvents(
+                element,
+                TreeScope.Element,
+                [
+                    element.Automation.PropertyLibrary.Element.IsEnabled,
+                    element.Automation.PropertyLibrary.Element.IsOffscreen,
+                ],
                 () => IsActionable(element) != untilGone,
                 timeout,
                 untilGone
@@ -266,9 +340,12 @@ public sealed class FlaUiSession : IAutomationSession
             return;
         }
 
-        var target = RequireTarget();
-        Poller.WaitUntil(
-            () => ContainsText(target, text!) != untilGone,
+        var targetWindow = RequireTarget();
+        WaitWithEvents(
+            targetWindow,
+            TreeScope.Subtree,
+            [targetWindow.Automation.PropertyLibrary.Element.Name],
+            () => ContainsText(targetWindow, text!) != untilGone,
             timeout,
             untilGone
                 ? $"Text '{text}' was still present after {timeout.TotalSeconds:0}s."
@@ -337,6 +414,7 @@ public sealed class FlaUiSession : IAutomationSession
         }
 
         _target = null;
+        _targetInfo = null;
         _refs.Clear();
     }
 
@@ -344,7 +422,10 @@ public sealed class FlaUiSession : IAutomationSession
         new()
         {
             DaemonProcessId = Environment.ProcessId,
-            Target = _target is not null && IsAvailable(_target) ? ToWindowInfo(_target) : null,
+            Target =
+                _targetInfo is not null && ProcessInterop.IsWindow(_targetInfo.WindowHandle)
+                    ? _targetInfo
+                    : null,
             SnapshotGeneration = _generation,
             RefCount = _refs.Count,
         };
@@ -355,56 +436,35 @@ public sealed class FlaUiSession : IAutomationSession
         _automation.Dispose();
     }
 
-    private static void ClickCurrentPosition(MouseButton button, bool doubleClick)
+    private static void SelectItemCore(AutomationElement element, string item, TimeSpan timeout)
     {
-        if (doubleClick)
+        var match = element.Patterns.ItemContainer.PatternOrDefault?.FindItemByProperty(
+            null,
+            element.Automation.PropertyLibrary.Element.Name,
+            item
+        );
+        match ??= FindDescendantByName(element, item);
+        if (match is null && element.Properties.ControlType.ValueOrDefault == ControlType.ComboBox)
         {
-            Mouse.DoubleClick(button);
+            element.Patterns.ExpandCollapse.PatternOrDefault?.Expand();
+            Poller.WaitUntil(
+                () => FindDescendantByName(element, item) is not null,
+                timeout,
+                $"No descendant named '{item}' appeared."
+            );
+            match = FindDescendantByName(element, item);
         }
-        else
-        {
-            Mouse.Click(button);
-        }
-    }
 
-    private static MouseButton ToMouseButton(MouseButtonKind kind) =>
-        kind switch
+        if (match is null)
         {
-            MouseButtonKind.Left => MouseButton.Left,
-            MouseButtonKind.Right => MouseButton.Right,
-            MouseButtonKind.Middle => MouseButton.Middle,
-            _ => MouseButton.Left,
-        };
-
-    private static void SelectItemCore(AutomationElement element, string item)
-    {
-        var controlType = element.Properties.ControlType.ValueOrDefault;
-        if (controlType == ControlType.ComboBox)
-        {
-            element.AsComboBox().Select(item);
-        }
-        else if (controlType == ControlType.List)
-        {
-            element.AsListBox().Select(item);
-        }
-        else if (controlType == ControlType.Tab)
-        {
-            element.AsTab().SelectTabItem(item);
-        }
-        else
-        {
-            SelectDescendantByName(element, item);
-        }
-    }
-
-    private static void SelectDescendantByName(AutomationElement element, string item)
-    {
-        var match =
-            element.FindFirstDescendant(cf => cf.ByName(item))
-            ?? throw new AutomationException(
+            throw new AutomationException(
                 ErrorCodes.NotFound,
                 $"No descendant named '{item}' found."
             );
+        }
+
+        match.Patterns.VirtualizedItem.PatternOrDefault?.Realize();
+
         var pattern =
             match.Patterns.SelectionItem.PatternOrDefault
             ?? throw new AutomationException(
@@ -413,6 +473,11 @@ public sealed class FlaUiSession : IAutomationSession
             );
         pattern.Select();
     }
+
+    private static AutomationElement? FindDescendantByName(
+        AutomationElement element,
+        string item
+    ) => element.FindFirstDescendant(cf => cf.ByName(item, PropertyConditionFlags.IgnoreCase));
 
     private static bool TryPatternScroll(
         AutomationElement element,
@@ -468,56 +533,140 @@ public sealed class FlaUiSession : IAutomationSession
         var rect = element.Properties.BoundingRectangle.ValueOrDefault;
         if (!rect.IsEmpty)
         {
-            Mouse.Position = RectConversions.Center(rect);
-        }
-
-        if (direction == ScrollDirection.Up)
-        {
-            Mouse.Scroll(amount);
-        }
-        else if (direction == ScrollDirection.Down)
-        {
-            Mouse.Scroll(-amount);
-        }
-        else if (direction == ScrollDirection.Left)
-        {
-            Mouse.HorizontalScroll(-amount);
-        }
-        else
-        {
-            Mouse.HorizontalScroll(amount);
+            NativeInput.Scroll(RectConversions.Center(rect), direction, amount);
         }
     }
 
     private static bool ContainsText(AutomationElement root, string text)
     {
-        // One bulk cross-process fetch of every descendant name per poll tick,
-        // instead of one COM round-trip per element.
-        var cacheRequest = new CacheRequest
-        {
-            TreeScope = TreeScope.Subtree,
-            TreeFilter = TrueCondition.Default,
-            AutomationElementMode = AutomationElementMode.None,
-        };
-        cacheRequest.Add(root.Automation.PropertyLibrary.Element.Name);
         try
         {
-            using (cacheRequest.Activate())
-            {
-                var descendants = root.FindAllDescendants();
-                return Array.Exists(
-                    descendants,
-                    d =>
-                        d.Properties.Name.ValueOrDefault?.Contains(
-                            text,
-                            StringComparison.OrdinalIgnoreCase
-                        ) == true
-                );
-            }
+            return root.FindFirstDescendant(cf => cf.ByName(text, (PropertyConditionFlags)3))
+                is not null;
         }
         catch (COMException)
         {
             return false;
+        }
+    }
+
+    private static PropertyId[] SelectorProperties(AutomationElement root, ElementSelector selector)
+    {
+        var properties = root.Automation.PropertyLibrary.Element;
+        var ids = new List<PropertyId>();
+        if (!string.IsNullOrEmpty(selector.AutomationId))
+        {
+            ids.Add(properties.AutomationId);
+        }
+
+        if (!string.IsNullOrEmpty(selector.Name) || !string.IsNullOrEmpty(selector.NameContains))
+        {
+            ids.Add(properties.Name);
+        }
+
+        if (!string.IsNullOrEmpty(selector.Role))
+        {
+            ids.Add(properties.ControlType);
+        }
+
+        return [.. ids];
+    }
+
+    private static void WaitWithEvents(
+        AutomationElement root,
+        TreeScope scope,
+        PropertyId[] propertyIds,
+        Func<bool> condition,
+        TimeSpan timeout,
+        string timeoutMessage
+    )
+    {
+        if (condition())
+        {
+            return;
+        }
+
+        using var wake = new AutoResetEvent(initialState: false);
+        var handlers = new List<EventHandlerBase>();
+        try
+        {
+            handlers.AddRange(RegisterWaitHandlers(root, scope, propertyIds, wake));
+
+            if (condition())
+            {
+                return;
+            }
+
+            var started = Stopwatch.GetTimestamp();
+            while (Stopwatch.GetElapsedTime(started) < timeout)
+            {
+                var remaining = timeout - Stopwatch.GetElapsedTime(started);
+                wake.WaitOne(
+                    remaining < TimeSpan.FromMilliseconds(250)
+                        ? remaining
+                        : TimeSpan.FromMilliseconds(250)
+                );
+                if (condition())
+                {
+                    return;
+                }
+            }
+        }
+        catch (COMException)
+        {
+            Poller.WaitUntil(condition, timeout, timeoutMessage);
+        }
+        finally
+        {
+            foreach (var handler in handlers)
+            {
+                Unregister(root, handler);
+            }
+        }
+
+        if (!condition())
+        {
+            throw new AutomationException(ErrorCodes.Timeout, timeoutMessage);
+        }
+    }
+
+    private static List<EventHandlerBase> RegisterWaitHandlers(
+        AutomationElement root,
+        TreeScope scope,
+        PropertyId[] propertyIds,
+        EventWaitHandle wake
+    )
+    {
+        var handlers = new List<EventHandlerBase>
+        {
+            root.RegisterStructureChangedEvent(scope, (_, _, _) => wake.Set()),
+        };
+        if (propertyIds.Length != 0)
+        {
+            handlers.Add(
+                root.RegisterPropertyChangedEvent(scope, (_, _, _) => wake.Set(), propertyIds)
+            );
+        }
+
+        return handlers;
+    }
+
+    private static void Unregister(AutomationElement root, EventHandlerBase handler)
+    {
+        try
+        {
+            if (handler is StructureChangedEventHandlerBase structure)
+            {
+                root.FrameworkAutomationElement.UnregisterStructureChangedEventHandler(structure);
+            }
+            else if (handler is PropertyChangedEventHandlerBase property)
+            {
+                root.FrameworkAutomationElement.UnregisterPropertyChangedEventHandler(property);
+            }
+        }
+        catch (COMException)
+        {
+            // The provider vanished while the handler was being removed.
         }
     }
 
@@ -578,11 +727,8 @@ public sealed class FlaUiSession : IAutomationSession
             : RectConversions.Center(rect);
     }
 
-    private static AutomationException PatternUnsupported(string elementRef, string pattern) =>
-        new(
-            ErrorCodes.PatternUnsupported,
-            $"{ElementRef.Display(elementRef)} does not support the {pattern} pattern."
-        );
+    private static AutomationException PatternUnsupported(string display, string pattern) =>
+        new(ErrorCodes.PatternUnsupported, $"{display} does not support the {pattern} pattern.");
 
     private static FlaUI.Core.Patterns.ITransformPattern RequireTransform(Window window) =>
         window.Patterns.Transform.PatternOrDefault
@@ -614,17 +760,75 @@ public sealed class FlaUiSession : IAutomationSession
         pattern.SetWindowVisualState(state);
     }
 
-    private static AutomationElement EnsureAvailable(
-        AutomationElement element,
-        string elementRef
-    ) =>
-        IsAvailable(element)
-            ? element
-            : throw new AutomationException(
-                ErrorCodes.StaleRef,
-                $"{ElementRef.Display(elementRef)} no longer exists in the UI. "
-                    + "Take a new snapshot."
+    private static ConditionBase BuildCondition(ConditionFactory factory, ElementSelector selector)
+    {
+        var conditions = new List<ConditionBase>();
+        if (!string.IsNullOrEmpty(selector.AutomationId))
+        {
+            conditions.Add(
+                factory.ByAutomationId(selector.AutomationId, PropertyConditionFlags.IgnoreCase)
             );
+        }
+
+        if (!string.IsNullOrEmpty(selector.Name))
+        {
+            conditions.Add(factory.ByName(selector.Name, PropertyConditionFlags.IgnoreCase));
+        }
+
+        if (!string.IsNullOrEmpty(selector.NameContains))
+        {
+            conditions.Add(factory.ByName(selector.NameContains, (PropertyConditionFlags)3));
+        }
+
+        if (!string.IsNullOrEmpty(selector.Role))
+        {
+            if (!RoleMapper.TryGetControlType(selector.Role, out var controlType))
+            {
+                throw new AutomationException(
+                    ErrorCodes.BadRequest,
+                    $"Unknown role '{selector.Role}'."
+                );
+            }
+
+            conditions.Add(factory.ByControlType(controlType));
+        }
+
+        return conditions.Count == 1 ? conditions[0] : new AndCondition(conditions);
+    }
+
+    private static string Display(ElementTarget target) =>
+        target.ElementRef is { } elementRef
+            ? ElementRef.Display(elementRef)
+            : $"selector({Describe(target.Selector!)})";
+
+    private static string Describe(ElementSelector selector)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(selector.AutomationId))
+        {
+            parts.Add($"automationId='{selector.AutomationId}'");
+        }
+
+        if (!string.IsNullOrEmpty(selector.Name))
+        {
+            parts.Add($"name='{selector.Name}'");
+        }
+
+        if (!string.IsNullOrEmpty(selector.NameContains))
+        {
+            parts.Add($"nameContains='{selector.NameContains}'");
+        }
+
+        if (!string.IsNullOrEmpty(selector.Role))
+        {
+            parts.Add($"role='{selector.Role}'");
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    private static AutomationException SelectorNotFound(ElementSelector selector) =>
+        new(ErrorCodes.NotFound, $"No element matched selector({Describe(selector)}).");
 
     /// <summary>
     /// Resolves the attach target against the same Win32 enumeration `list` uses,
@@ -653,7 +857,6 @@ public sealed class FlaUiSession : IAutomationSession
                     $"No window with a title containing '{text}' found. "
                         + "Run 'agent-windows list' to see available windows."
                 ),
-            // The dispatcher rejects attach requests with no selector.
             _ => throw new UnreachableException(),
         };
     }
@@ -675,9 +878,55 @@ public sealed class FlaUiSession : IAutomationSession
         };
     }
 
-    private void SetTarget(Window window)
+    private AutomationElement[] FindElements(ElementSelector selector, bool all)
+    {
+        var root = selector.ScopeRef is null ? RequireTarget() : Resolve(selector.ScopeRef);
+        var condition = BuildCondition(root.Automation.ConditionFactory, selector);
+        if (!all)
+        {
+            var first = root.FindFirst(TreeScope.Subtree, condition);
+            return first is null ? [] : [first];
+        }
+
+        return root.FindAll(TreeScope.Subtree, condition);
+    }
+
+    private UiNode CreateFindNode(AutomationElement element)
+    {
+        var elementRef = string.Create(CultureInfo.InvariantCulture, $"e{_nextRefIndex}");
+        _nextRefIndex++;
+        _refs[elementRef] = element;
+        var controlType = element.Properties.ControlType.ValueOrDefault;
+        return new UiNode
+        {
+            Role = RoleMapper.ToRole(controlType),
+            Name = element.Properties.Name.ValueOrDefault,
+            AutomationId = element.Properties.AutomationId.ValueOrDefault,
+            Ref = elementRef,
+            Bounds = RectConversions.ToBoundingRect(
+                element.Properties.BoundingRectangle.ValueOrDefault
+            ),
+            States = [],
+            Children = [],
+        };
+    }
+
+    private bool SelectorExists(ElementSelector selector)
+    {
+        try
+        {
+            return FindElements(selector, all: false).Length != 0;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+    }
+
+    private void SetTarget(Window window, WindowInfo info)
     {
         _target = window;
+        _targetInfo = info;
         _refs.Clear();
     }
 
@@ -704,7 +953,29 @@ public sealed class FlaUiSession : IAutomationSession
     private AutomationElement Resolve(string elementRef) =>
         !_refs.TryGetValue(elementRef, out var element)
             ? throw MissingRefError(elementRef)
-            : EnsureAvailable(element, elementRef);
+            : element;
+
+    private AutomationElement Resolve(ElementTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.ElementRef is { } elementRef)
+        {
+            return Resolve(elementRef);
+        }
+
+        var selector = target.Selector!;
+        var matches = FindElements(selector, selector.RequireUnique);
+        var error = matches.Length switch
+        {
+            0 => SelectorNotFound(selector),
+            _ when selector.RequireUnique && matches.Length != 1 => new AutomationException(
+                ErrorCodes.Ambiguous,
+                $"Selector matched {matches.Length} elements; refine it."
+            ),
+            _ => null,
+        };
+        return error is null ? matches[0] : throw error;
+    }
 
     private AutomationException MissingRefError(string elementRef)
     {

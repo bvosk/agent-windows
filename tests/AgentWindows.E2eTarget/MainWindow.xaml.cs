@@ -6,6 +6,8 @@ namespace AgentWindows.E2eTarget;
 
 public partial class MainWindow : Window
 {
+    private int _activationCount;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -15,8 +17,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnSubmitClick(object sender, RoutedEventArgs e) =>
+    private void OnSubmitClick(object sender, RoutedEventArgs e)
+    {
+        _activationCount++;
         ResultLabel.Text = $"Submitted: {InputBox.Text}";
+        ActionCountLabel.Text = $"Activations: {_activationCount}";
+    }
 
     private void OnSlowClick(object sender, RoutedEventArgs e)
     {

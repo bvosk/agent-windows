@@ -1,6 +1,8 @@
 using AgentWindows.Cli.ConsoleHost;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
 using AgentWindows.Core.Session;
+using AgentWindows.Core.Snapshots;
 using AgentWindows.Core.Windows;
 using Shouldly;
 using Xunit;
@@ -85,6 +87,17 @@ public sealed class RequestBuilderTests
     }
 
     [Fact]
+    public void BuildClick_PreservesSelector()
+    {
+        var selector = new ElementSelector { AutomationId = "save" };
+
+        var request = RequestBuilder.BuildClick(null, selector, null, false, false, false, 1000);
+
+        request.Ref.ShouldBeNull();
+        request.Selector.ShouldBeSameAs(selector);
+    }
+
+    [Fact]
     public void BuildToggle_RejectsOnAndOffTogether() =>
         Should
             .Throw<AutomationException>(() => RequestBuilder.BuildToggle("@e1", true, true, 1000))
@@ -97,4 +110,48 @@ public sealed class RequestBuilderTests
         RequestBuilder.BuildToggle("@e1", false, true, 1000).State.ShouldBe(false);
         RequestBuilder.BuildToggle("@e1", false, false, 1000).State.ShouldBeNull();
     }
+
+    [Fact]
+    public void BuildToggle_PreservesSelector()
+    {
+        var selector = new ElementSelector { Name = "Remember me" };
+
+        var request = RequestBuilder.BuildToggle(null, selector, false, false, 1000);
+
+        request.Selector.ShouldBeSameAs(selector);
+    }
+
+    [Fact]
+    public void RequireValue_AcceptsExactlyOneSource()
+    {
+        RequestBuilder.RequireValue("positional", null, "value").ShouldBe("positional");
+        RequestBuilder.RequireValue(null, "option", "value").ShouldBe("option");
+    }
+
+    [Theory]
+    [InlineData("positional", "option")]
+    [InlineData(null, null)]
+    public void RequireValue_RejectsAmbiguousOrMissingValues(string? positional, string? option) =>
+        Should
+            .Throw<AutomationException>(() =>
+                RequestBuilder.RequireValue(positional, option, "value")
+            )
+            .Code.ShouldBe(ErrorCodes.BadRequest);
+
+    [Theory]
+    [InlineData(null, false, SnapshotView.Raw)]
+    [InlineData(null, true, SnapshotView.Control)]
+    [InlineData("RAW", true, SnapshotView.Raw)]
+    [InlineData("control", false, SnapshotView.Control)]
+    public void ParseSnapshotView_MapsDefaultsAndNames(
+        string? value,
+        bool interactive,
+        SnapshotView expected
+    ) => RequestBuilder.ParseSnapshotView(value, interactive).ShouldBe(expected);
+
+    [Fact]
+    public void ParseSnapshotView_RejectsUnknownView() =>
+        Should
+            .Throw<AutomationException>(() => RequestBuilder.ParseSnapshotView("content", false))
+            .Code.ShouldBe(ErrorCodes.BadRequest);
 }

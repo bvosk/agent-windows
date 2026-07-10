@@ -1,3 +1,4 @@
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Protocol.Transport;
 
 namespace AgentWindows.Core.Protocol.Interaction;
@@ -5,6 +6,8 @@ namespace AgentWindows.Core.Protocol.Interaction;
 public sealed record WaitRequest : DaemonRequest
 {
     public string? Ref { get; init; }
+
+    public ElementSelector? Selector { get; init; }
 
     /// <summary>Waits for an element whose name contains this text to appear in the target.</summary>
     public string? Text { get; init; }

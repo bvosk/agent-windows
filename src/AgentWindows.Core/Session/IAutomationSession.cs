@@ -1,3 +1,4 @@
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
 using AgentWindows.Core.Snapshots;
 using AgentWindows.Core.Windows;
@@ -18,6 +19,10 @@ public interface IAutomationSession : IDisposable
 
     public SnapshotResult CaptureSnapshot(SnapshotOptions options);
 
+    public FindResult Find(ElementSelector selector, bool all);
+
+    public void Activate(ElementTarget target, TimeSpan timeout);
+
     public void Click(
         ClickTarget target,
         MouseButtonKind button,
@@ -25,24 +30,24 @@ public interface IAutomationSession : IDisposable
         TimeSpan timeout
     );
 
-    public void Fill(string elementRef, string text, TimeSpan timeout);
+    public void Fill(ElementTarget target, string text, TimeSpan timeout);
 
     public void Press(KeyGesture gesture);
 
-    public void SelectItem(string elementRef, string item, TimeSpan timeout);
+    public void SelectItem(ElementTarget target, string item, TimeSpan timeout);
 
-    public void Expand(string elementRef, bool collapse, TimeSpan timeout);
+    public void Expand(ElementTarget target, bool collapse, TimeSpan timeout);
 
-    public void Toggle(string elementRef, bool? desiredState, TimeSpan timeout);
+    public void Toggle(ElementTarget target, bool? desiredState, TimeSpan timeout);
 
     public void Scroll(
-        string? elementRef,
+        ElementTarget? target,
         ScrollDirection direction,
         double amount,
         TimeSpan timeout
     );
 
-    public void WaitFor(string? elementRef, string? text, bool untilGone, TimeSpan timeout);
+    public void WaitFor(ElementTarget? target, string? text, bool untilGone, TimeSpan timeout);
 
     public string CaptureScreenshot(string? elementRef, string outputPath);
 

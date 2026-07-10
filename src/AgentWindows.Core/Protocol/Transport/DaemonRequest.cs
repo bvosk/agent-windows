@@ -11,6 +11,8 @@ namespace AgentWindows.Core.Protocol.Transport;
 [JsonDerivedType(typeof(LaunchRequest), "launch")]
 [JsonDerivedType(typeof(AttachRequest), "attach")]
 [JsonDerivedType(typeof(SnapshotRequest), "snapshot")]
+[JsonDerivedType(typeof(FindRequest), "find")]
+[JsonDerivedType(typeof(ActivateRequest), "activate")]
 [JsonDerivedType(typeof(ClickRequest), "click")]
 [JsonDerivedType(typeof(FillRequest), "fill")]
 [JsonDerivedType(typeof(PressRequest), "press")]

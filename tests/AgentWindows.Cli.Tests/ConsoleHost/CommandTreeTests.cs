@@ -1,5 +1,6 @@
 using System.CommandLine;
 using AgentWindows.Cli.ConsoleHost;
+using AgentWindows.Core.Protocol.Capture;
 using AgentWindows.Core.Protocol.Windows;
 using Shouldly;
 using Xunit;
@@ -34,11 +35,17 @@ public sealed class CommandTreeTests
     [InlineData("attach --hwnd 65538")]
     [InlineData("snapshot")]
     [InlineData("snapshot -i --depth 10 --scope @e3")]
+    [InlineData("snapshot -i --view raw")]
+    [InlineData("find --automation-id SubmitButton --require-unique")]
+    [InlineData("activate @e4")]
+    [InlineData("activate --automation-id SubmitButton")]
     [InlineData("click @e4")]
     [InlineData("click --at 640,220 --right --double")]
     [InlineData("fill @e7 hello")]
+    [InlineData("fill --automation-id InputBox --value hello")]
     [InlineData("press Ctrl+S")]
     [InlineData("select @e2 Red")]
+    [InlineData("select --automation-id ColorCombo --item Red")]
     [InlineData("expand @e5 --collapse")]
     [InlineData("toggle @e6 --on")]
     [InlineData("scroll down @e8 --amount 5")]
@@ -68,7 +75,6 @@ public sealed class CommandTreeTests
     [Theory]
     [InlineData("frobnicate")]
     [InlineData("launch")]
-    [InlineData("fill @e7")]
     [InlineData("press")]
     public void Parse_RejectsInvalidCommandLines(string commandLine)
     {
@@ -87,6 +93,8 @@ public sealed class CommandTreeTests
             "launch",
             "attach",
             "snapshot",
+            "find",
+            "activate",
             "click",
             "fill",
             "press",
@@ -130,5 +138,24 @@ public sealed class CommandTreeTests
         result.Errors.ShouldBeEmpty();
         var request = _context.BuildRequest(result).ShouldBeOfType<LaunchRequest>();
         request.Path.ShouldBe(Path.GetFullPath(relativePath));
+    }
+
+    [Fact]
+    public void BuildRequest_FindReadsSelectorOptions()
+    {
+        var result = _root.Parse(
+            "find --automation-id Save --name Save --name-contains Sav --role button --scope @e2 --require-unique --all",
+            CommandTree.CreateConfiguration()
+        );
+
+        var request = _context.BuildRequest(result).ShouldBeOfType<FindRequest>();
+
+        request.All.ShouldBeTrue();
+        request.Selector.AutomationId.ShouldBe("Save");
+        request.Selector.Name.ShouldBe("Save");
+        request.Selector.NameContains.ShouldBe("Sav");
+        request.Selector.Role.ShouldBe("button");
+        request.Selector.ScopeRef.ShouldBe("@e2");
+        request.Selector.RequireUnique.ShouldBeTrue();
     }
 }

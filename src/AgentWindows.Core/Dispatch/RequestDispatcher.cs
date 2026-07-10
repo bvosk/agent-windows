@@ -57,6 +57,42 @@ public sealed class RequestDispatcher(IAutomationSession session)
     private static string? NormalizeOptionalRef(string? input) =>
         input is null ? null : NormalizeRef(input);
 
+    private static ElementSelector NormalizeSelector(ElementSelector selector)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        return !selector.IsEmpty
+            ? selector with
+            {
+                ScopeRef = NormalizeOptionalRef(selector.ScopeRef),
+            }
+            : throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "A selector requires --automation-id, --name, --name-contains, or --role."
+            );
+    }
+
+    private static ElementTarget CreateTarget(string? elementRef, ElementSelector? selector) =>
+        CreateOptionalTarget(elementRef, selector)
+        ?? throw new AutomationException(
+            ErrorCodes.BadRequest,
+            "The command requires exactly one element ref or selector target."
+        );
+
+    private static ElementTarget? CreateOptionalTarget(
+        string? elementRef,
+        ElementSelector? selector
+    ) =>
+        (elementRef, selector) switch
+        {
+            ({ } value, null) => ElementTarget.ForRef(NormalizeRef(value)),
+            (null, { } value) => ElementTarget.ForSelector(NormalizeSelector(value)),
+            (null, null) => null,
+            _ => throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "Specify an element ref or selector, not both."
+            ),
+        };
+
     private static void ValidateWindowAction(WindowActionRequest request)
     {
         if (request.Action == WindowActionKind.Move && (request.X is null || request.Y is null))
@@ -93,6 +129,8 @@ public sealed class RequestDispatcher(IAutomationSession session)
             ),
             AttachRequest r => ExecuteAttach(r),
             SnapshotRequest r => ExecuteSnapshot(r),
+            FindRequest r => ExecuteFind(r),
+            ActivateRequest r => ExecuteActivate(r),
             ClickRequest r => ExecuteClick(r),
             FillRequest r => ExecuteFill(r),
             PressRequest r => ExecutePress(r),
@@ -171,6 +209,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
         {
             InteractiveOnly = request.InteractiveOnly,
             MaxDepth = request.MaxDepth,
+            View = request.View,
             ScopeRef = NormalizeOptionalRef(request.ScopeRef),
         };
         var result = _session.CaptureSnapshot(options);
@@ -179,15 +218,26 @@ public sealed class RequestDispatcher(IAutomationSession session)
         );
     }
 
+    private DaemonResponse ExecuteFind(FindRequest request)
+    {
+        var result = _session.Find(NormalizeSelector(request.Selector), request.All);
+        return DaemonResponse.Success(new FindPayload { Matches = result.Matches });
+    }
+
     private DaemonResponse ExecuteClick(ClickRequest request)
     {
         var target = request switch
         {
-            { Ref: { } elementRef } => ClickTarget.ForRef(NormalizeRef(elementRef)),
-            { X: { } x, Y: { } y } => ClickTarget.ForPoint(x, y),
+            { Ref: { } elementRef, Selector: null, X: null, Y: null } => ClickTarget.ForRef(
+                NormalizeRef(elementRef)
+            ),
+            { Ref: null, Selector: { } selector, X: null, Y: null } => ClickTarget.ForSelector(
+                NormalizeSelector(selector)
+            ),
+            { Ref: null, Selector: null, X: { } x, Y: { } y } => ClickTarget.ForPoint(x, y),
             _ => throw new AutomationException(
                 ErrorCodes.BadRequest,
-                "click requires an element ref or --at x,y coordinates."
+                "click requires exactly one ref, selector, or --at x,y coordinate target."
             ),
         };
 
@@ -195,9 +245,19 @@ public sealed class RequestDispatcher(IAutomationSession session)
         return Ack("clicked");
     }
 
+    private DaemonResponse ExecuteActivate(ActivateRequest request)
+    {
+        _session.Activate(CreateTarget(request.Ref, request.Selector), Timeout(request.TimeoutMs));
+        return Ack("activated");
+    }
+
     private DaemonResponse ExecuteFill(FillRequest request)
     {
-        _session.Fill(NormalizeRef(request.Ref), request.Text, Timeout(request.TimeoutMs));
+        _session.Fill(
+            CreateTarget(request.Ref, request.Selector),
+            request.Text,
+            Timeout(request.TimeoutMs)
+        );
         return Ack("filled");
     }
 
@@ -209,26 +269,38 @@ public sealed class RequestDispatcher(IAutomationSession session)
 
     private DaemonResponse ExecuteSelect(SelectRequest request)
     {
-        _session.SelectItem(NormalizeRef(request.Ref), request.Item, Timeout(request.TimeoutMs));
+        _session.SelectItem(
+            CreateTarget(request.Ref, request.Selector),
+            request.Item,
+            Timeout(request.TimeoutMs)
+        );
         return Ack($"selected {request.Item}");
     }
 
     private DaemonResponse ExecuteExpand(ExpandRequest request)
     {
-        _session.Expand(NormalizeRef(request.Ref), request.Collapse, Timeout(request.TimeoutMs));
+        _session.Expand(
+            CreateTarget(request.Ref, request.Selector),
+            request.Collapse,
+            Timeout(request.TimeoutMs)
+        );
         return Ack(request.Collapse ? "collapsed" : "expanded");
     }
 
     private DaemonResponse ExecuteToggle(ToggleRequest request)
     {
-        _session.Toggle(NormalizeRef(request.Ref), request.State, Timeout(request.TimeoutMs));
+        _session.Toggle(
+            CreateTarget(request.Ref, request.Selector),
+            request.State,
+            Timeout(request.TimeoutMs)
+        );
         return Ack("toggled");
     }
 
     private DaemonResponse ExecuteScroll(ScrollRequest request)
     {
         _session.Scroll(
-            NormalizeOptionalRef(request.Ref),
+            CreateOptionalTarget(request.Ref, request.Selector),
             request.Direction,
             request.Amount,
             Timeout(request.TimeoutMs)
@@ -238,7 +310,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
 
     private DaemonResponse ExecuteWait(WaitRequest request)
     {
-        if (request.Ref is null && request.Text is null)
+        if (request.Ref is null && request.Selector is null && request.Text is null)
         {
             throw new AutomationException(
                 ErrorCodes.BadRequest,
@@ -247,7 +319,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
         }
 
         _session.WaitFor(
-            NormalizeOptionalRef(request.Ref),
+            CreateOptionalTarget(request.Ref, request.Selector),
             request.Text,
             request.Gone,
             Timeout(request.TimeoutMs)

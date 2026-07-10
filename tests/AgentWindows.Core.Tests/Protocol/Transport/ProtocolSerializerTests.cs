@@ -1,3 +1,4 @@
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
 using AgentWindows.Core.Protocol.Capture;
 using AgentWindows.Core.Protocol.Interaction;
@@ -19,6 +20,12 @@ public sealed class ProtocolSerializerTests
             new LaunchRequest { Path = "notepad.exe", Arguments = "file.txt" },
             new AttachRequest { Title = "Calc" },
             new SnapshotRequest { InteractiveOnly = true, MaxDepth = 5 },
+            new FindRequest
+            {
+                Selector = new ElementSelector { AutomationId = "save", RequireUnique = true },
+                All = true,
+            },
+            new ActivateRequest { Ref = "e1" },
             new ClickRequest { Ref = "e2", DoubleClick = true },
             new FillRequest { Ref = "e3", Text = "hello" },
             new PressRequest { Keys = "Enter" },
@@ -107,6 +114,32 @@ public sealed class ProtocolSerializerTests
         var payload = back.Payload.ShouldBeOfType<SnapshotPayload>();
         payload.Generation.ShouldBe(3);
         payload.Root.Children[0].Name.ShouldBe("Five");
+    }
+
+    [Fact]
+    public void Responses_RoundTripWithFindPayload()
+    {
+        var response = DaemonResponse.Success(
+            new FindPayload
+            {
+                Matches =
+                [
+                    new UiNode
+                    {
+                        Role = "button",
+                        Name = "Save",
+                        Ref = "e9",
+                    },
+                ],
+            }
+        );
+
+        var json = ProtocolSerializer.SerializeResponse(response);
+        var back = ProtocolSerializer.DeserializeResponse(json);
+
+        var payload = back.ShouldNotBeNull().Payload.ShouldBeOfType<FindPayload>();
+        payload.Matches.ShouldHaveSingleItem().Ref.ShouldBe("e9");
+        ProtocolSerializer.SerializeResponse(back).ShouldBe(json);
     }
 
     [Fact]

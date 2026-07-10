@@ -11,7 +11,7 @@ Windows-native UI automation CLI for AI agents, built on Microsoft UI Automation
 ```
 agent-windows attach --window "Notepad"   # 1. Attach to a window (or launch one)
 agent-windows snapshot -i                 # 2. See what's in it (interactive elements only)
-agent-windows click @e5                   # 3. Act on refs from the snapshot
+agent-windows activate @e5                # 3. Prefer semantic activation
 agent-windows snapshot -i                 # 4. Re-snapshot after the UI changes
 ```
 
@@ -52,6 +52,7 @@ agent-windows snapshot -i                 # interactive elements only (preferred
 agent-windows snapshot --depth 3          # limit tree depth
 agent-windows snapshot --scope @e7        # only the subtree under a previous ref
 agent-windows snapshot --json             # machine-readable envelope
+agent-windows find --automation-id Save   # fast provider-side lookup with a live ref
 ```
 
 Snapshot lines look like:
@@ -67,6 +68,7 @@ Snapshot lines look like:
 ## Interacting
 
 ```
+agent-windows activate @e1                # semantic Invoke/Toggle/Select/Expand (preferred)
 agent-windows click @e1                   # click (retries until enabled + on-screen)
 agent-windows click @e1 --double          # double-click
 agent-windows click @e1 --right           # right-click (context menu)
@@ -79,6 +81,8 @@ agent-windows expand @e5 --collapse       # collapse it
 agent-windows toggle @e3 --on             # checkbox; --on/--off are idempotent
 agent-windows scroll down @e6 --amount 5  # ScrollPattern with wheel fallback
 ```
+
+Prefer `activate` for buttons, links, menu items, checkboxes, selectable items, and expandable controls. It avoids pointer movement and physical click timing. If the control returns `pattern-unsupported`, fall back to `click`.
 
 Action commands take `--timeout <ms>` (default 10000) and retry until the element is actionable — you rarely need an explicit wait before acting on a ref.
 
@@ -171,7 +175,7 @@ Every command supports `--json` and prints a single-line envelope:
 {"ok":false,"errorCode":"stale-ref","message":"@e4 is not part of the most recent snapshot (generation 2). Run 'agent-windows snapshot' again."}
 ```
 
-Error codes: `bad-request`, `no-target`, `not-found`, `unknown-ref`, `stale-ref`, `timeout`, `elevated-target`, `launch-failed`, `pattern-unsupported`, `internal-error`.
+Error codes: `bad-request`, `no-target`, `not-found`, `ambiguous`, `unknown-ref`, `stale-ref`, `timeout`, `elevated-target`, `launch-failed`, `pattern-unsupported`, `internal-error`.
 
 ## Windows gotchas
 

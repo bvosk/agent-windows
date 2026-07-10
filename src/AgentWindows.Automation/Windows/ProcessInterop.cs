@@ -19,6 +19,9 @@ public static partial class ProcessInterop
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
+    public static bool IsWindow(long windowHandle) =>
+        NativeMethods.IsNativeWindow(new IntPtr(windowHandle));
+
     /// <summary>
     /// Reads the process name and token elevation from one process handle. Fields
     /// are ""/null when the process is gone or not accessible.
@@ -89,6 +92,11 @@ public static partial class ProcessInterop
 
     private static partial class NativeMethods
     {
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [LibraryImport("user32.dll", EntryPoint = "IsWindow")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static partial bool IsNativeWindow(IntPtr windowHandle);
+
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [LibraryImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

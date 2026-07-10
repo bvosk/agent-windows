@@ -27,6 +27,8 @@ The first command auto-starts a background **daemon** that owns a single UI Auto
 | `launch --app <path> [--args <a>]` | Launch an app and attach to its main window |
 | `attach --window <title> \| --pid <n> \| --hwnd <n>` | Attach to an existing window (title is substring, case-insensitive) |
 | `snapshot [-i] [--depth <n>] [--scope @ref]` | Accessibility tree with refs; `-i` keeps interactive elements only |
+| `find [--automation-id <id>] [--name <name>] [--name-contains <text>] [--role <role>]` | Provider-side lookup that returns live refs without a full snapshot |
+| `activate @ref` | Semantic activation through Invoke/Toggle/SelectionItem/ExpandCollapse |
 | `click [@ref] [--at x,y] [--right] [--middle] [--double]` | Click an element, or coordinates as an escape hatch |
 | `fill @ref <text>` | Set the value of an editable element (ValuePattern, keyboard fallback) |
 | `press <keys>` | Key or chord: `Enter`, `Ctrl+S`, `Ctrl+Shift+Tab` |
@@ -68,7 +70,13 @@ Every command supports `--json` and prints a single-line envelope:
 {"ok":false,"errorCode":"stale-ref","message":"@e4 is not part of the most recent snapshot (generation 2). Run 'agent-windows snapshot' again."}
 ```
 
-Error codes: `bad-request`, `no-target`, `not-found`, `unknown-ref`, `stale-ref`, `timeout`, `elevated-target`, `launch-failed`, `pattern-unsupported`, `internal-error`.
+Error codes: `bad-request`, `no-target`, `not-found`, `ambiguous`, `unknown-ref`, `stale-ref`, `timeout`, `elevated-target`, `launch-failed`, `pattern-unsupported`, `internal-error`.
+
+## Performance history
+
+[![agent-windows performance history](https://bvosk.github.io/agent-windows/performance/summary.svg)](https://bvosk.github.io/agent-windows/performance/)
+
+Every commit on the default branch and active pull requests is benchmarked against the fixed `baseline-v1` build on the same GitHub-hosted Windows runner. The score is normalized to **100 for the baseline; lower is better**. The dashboard includes per-commit p50/p95 latency, raw measurements, PR histories, and failed-run visibility.
 
 ## Agent skill
 
@@ -100,7 +108,11 @@ mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target
 mise run coverage   # tests + HTML coverage report under artifacts/coverage
 mise run check      # formatting + analyzers + strict Core/CLI coverage gate
 mise run format     # CSharpier
-mise run bench      # hyperfine latency benchmark against the bundled target app
+mise run bench      # alias for the quick performance harness
+mise run perf       # quick local report under artifacts/performance/local
+mise run perf:compare # paired reference/candidate ABBA comparison
+mise run perf:record  # full authoritative suite used by CI
+mise run perf:test    # per-commit range, deduplication, and >256 batching fixtures
 mise run profile    # dotnet-trace capture of the daemon under snapshot load
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
 mise run reinstall  # publish, stop all daemons, and replace the global tool
@@ -112,13 +124,14 @@ To install the CLI globally after publishing:
 dotnet tool install -g AgentWindows --add-source .\artifacts\package
 ```
 
-The tool package needs the .NET 10 runtime; the self-contained `artifacts\publish\agent-windows.exe` runs without any .NET install. (Internally the tool package is a thin `net10.0` launcher around the `net10.0-windows` CLI, because the SDK's `PackAsTool` rejects windows-specific target frameworks — NETSDK1146.)
+The tool package needs the .NET 10 runtime. The publish directory pairs a NativeAOT `artifacts\publish\agent-windows.exe` client with a self-contained `agent-windows-daemon.exe`; neither requires a machine-wide .NET install. The dotnet tool keeps the combined managed client/daemon for compatibility. (Internally the tool package is a thin `net10.0` launcher around the `net10.0-windows` CLI, because the SDK's `PackAsTool` rejects windows-specific target frameworks — NETSDK1146.)
 
 ## Architecture
 
 - `src/AgentWindows.Core` — cross-platform, dependency-free, and grouped by capability: `Dispatch`, `Elements`, `Input`, `Protocol`, `Session`, `Snapshots`, and `Windows`. Protocol types are further grouped by `Capture`, `Interaction`, `Lifecycle`, `Transport`, and `Windows`. This is where the unit-test coverage lives.
 - `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA, grouped into `Input`, `Session`, `Snapshots`, and `Windows`. Verified by integration smoke tests, excluded from unit coverage.
 - `src/AgentWindows.Cli` — System.CommandLine front end grouped into `ConsoleHost` and `Daemon`; the composition root remains in `Program.cs`.
+- `src/AgentWindows.Client` — NativeAOT client build that reuses the CLI surface and starts the sibling managed automation daemon.
 - Test folders mirror their production capability folders. End-to-end test plumbing lives under `Infrastructure`, while user-visible workflows live under `Scenarios`.
 - Architecture tests (NetArchTest) enforce the layering: Core never references FlaUI or the other projects.
 - The unit-test quality gate requires 100% line, branch, method, and full-method coverage for Core and CLI after a small, architecture-tested allowlist of native composition roots. Automation remains owned by the desktop e2e gate; the dotnet-tool launcher is validated by the publish/reinstall smoke path.

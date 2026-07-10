@@ -35,6 +35,12 @@
             Text="Ready"
             Margin="0,0,0,8"
         />
+        <TextBlock
+            x:Name="ActionCountLabel"
+            AutomationProperties.AutomationId="ActionCountLabel"
+            Text="Activations: 0"
+            Margin="0,0,0,8"
+        />
         <CheckBox
             x:Name="FeatureCheck"
             AutomationProperties.AutomationId="FeatureCheck"

@@ -59,6 +59,16 @@ public sealed class FakeAutomationSession : IAutomationSession
         return Snapshot;
     }
 
+    public FindResult Find(ElementSelector selector, bool all)
+    {
+        ArgumentNullException.ThrowIfNull(selector);
+        Record($"find selector={Format(selector)} all={all}");
+        return new FindResult { Matches = [Snapshot.Root] };
+    }
+
+    public void Activate(ElementTarget target, TimeSpan timeout) =>
+        Record($"activate target={Format(target)} timeout={Ms(timeout)}");
+
     public void Click(
         ClickTarget target,
         MouseButtonKind button,
@@ -73,8 +83,8 @@ public sealed class FakeAutomationSession : IAutomationSession
         );
     }
 
-    public void Fill(string elementRef, string text, TimeSpan timeout) =>
-        Record($"fill ref={elementRef} text={text} timeout={Ms(timeout)}");
+    public void Fill(ElementTarget target, string text, TimeSpan timeout) =>
+        Record($"fill target={Format(target)} text={text} timeout={Ms(timeout)}");
 
     public void Press(KeyGesture gesture)
     {
@@ -82,27 +92,27 @@ public sealed class FakeAutomationSession : IAutomationSession
         Record($"press modifiers={string.Join('+', gesture.Modifiers)} key={gesture.Key}");
     }
 
-    public void SelectItem(string elementRef, string item, TimeSpan timeout) =>
-        Record($"select ref={elementRef} item={item} timeout={Ms(timeout)}");
+    public void SelectItem(ElementTarget target, string item, TimeSpan timeout) =>
+        Record($"select target={Format(target)} item={item} timeout={Ms(timeout)}");
 
-    public void Expand(string elementRef, bool collapse, TimeSpan timeout) =>
-        Record($"expand ref={elementRef} collapse={collapse} timeout={Ms(timeout)}");
+    public void Expand(ElementTarget target, bool collapse, TimeSpan timeout) =>
+        Record($"expand target={Format(target)} collapse={collapse} timeout={Ms(timeout)}");
 
-    public void Toggle(string elementRef, bool? desiredState, TimeSpan timeout) =>
-        Record($"toggle ref={elementRef} state={desiredState} timeout={Ms(timeout)}");
+    public void Toggle(ElementTarget target, bool? desiredState, TimeSpan timeout) =>
+        Record($"toggle target={Format(target)} state={desiredState} timeout={Ms(timeout)}");
 
     public void Scroll(
-        string? elementRef,
+        ElementTarget? target,
         ScrollDirection direction,
         double amount,
         TimeSpan timeout
     ) =>
         Record(
-            $"scroll ref={elementRef} direction={direction} amount={amount} timeout={Ms(timeout)}"
+            $"scroll target={Format(target)} direction={direction} amount={amount} timeout={Ms(timeout)}"
         );
 
-    public void WaitFor(string? elementRef, string? text, bool untilGone, TimeSpan timeout) =>
-        Record($"wait ref={elementRef} text={text} gone={untilGone} timeout={Ms(timeout)}");
+    public void WaitFor(ElementTarget? target, string? text, bool untilGone, TimeSpan timeout) =>
+        Record($"wait target={Format(target)} text={text} gone={untilGone} timeout={Ms(timeout)}");
 
     public string CaptureScreenshot(string? elementRef, string outputPath)
     {
@@ -138,6 +148,19 @@ public sealed class FakeAutomationSession : IAutomationSession
 
     private static string Ms(TimeSpan timeout) =>
         timeout.TotalMilliseconds.ToString(CultureInfo.InvariantCulture);
+
+    private static string Format(ElementTarget? target) =>
+        target switch
+        {
+            null => "none",
+            { ElementRef: { } elementRef } => elementRef,
+            { Selector: { } selector } => Format(selector),
+            _ => "invalid",
+        };
+
+    private static string Format(ElementSelector selector) =>
+        $"id={selector.AutomationId},name={selector.Name},contains={selector.NameContains},"
+        + $"role={selector.Role},scope={selector.ScopeRef},unique={selector.RequireUnique}";
 
     private void Record(string call)
     {

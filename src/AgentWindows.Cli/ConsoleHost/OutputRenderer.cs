@@ -50,11 +50,23 @@ public static class OutputRenderer
             WindowListPayload p => RenderWindowList(p.Windows),
             WindowPayload p => RenderWindow(p.Window) + "\n",
             SnapshotPayload p => SnapshotTextFormatter.Format(p.Root),
+            FindPayload p => RenderFind(p.Matches),
             ScreenshotPayload p => $"saved: {p.Path}\n",
             StatusPayload p => RenderStatus(p.Status),
             AckPayload p => $"ok: {p.Detail ?? "done"}\n",
             _ => "ok\n",
         };
+
+    private static string RenderFind(IReadOnlyList<UiNode> matches)
+    {
+        var builder = new StringBuilder();
+        foreach (var match in matches)
+        {
+            builder.Append(SnapshotTextFormatter.Format(match));
+        }
+
+        return builder.ToString();
+    }
 
     private static string RenderWindowList(IReadOnlyList<WindowInfo> windows)
     {

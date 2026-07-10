@@ -1,5 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace AgentWindows.Core.Protocol.Transport;
 
@@ -14,25 +15,26 @@ public static class ProtocolSerializer
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
+    private static readonly ProtocolJsonContext _context = new(_options);
 
     public static string SerializeRequest(DaemonRequest request) =>
-        JsonSerializer.Serialize(request, _options);
+        JsonSerializer.Serialize(request, _context.DaemonRequest);
 
     public static string SerializeResponse(DaemonResponse response) =>
-        JsonSerializer.Serialize(response, _options);
+        JsonSerializer.Serialize(response, _context.DaemonResponse);
 
     public static DaemonRequest? DeserializeRequest(string line) =>
-        TryDeserialize<DaemonRequest>(line);
+        TryDeserialize(line, _context.DaemonRequest);
 
     public static DaemonResponse? DeserializeResponse(string line) =>
-        TryDeserialize<DaemonResponse>(line);
+        TryDeserialize(line, _context.DaemonResponse);
 
-    private static T? TryDeserialize<T>(string line)
+    private static T? TryDeserialize<T>(string line, JsonTypeInfo<T> typeInfo)
         where T : class
     {
         try
         {
-            return JsonSerializer.Deserialize<T>(line, _options);
+            return JsonSerializer.Deserialize(line, typeInfo);
         }
         catch (JsonException)
         {

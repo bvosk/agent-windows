@@ -57,11 +57,23 @@ public sealed class DaemonClient : IDisposable
 
     public DaemonResponse Send(DaemonRequest request, bool spawnIfMissing = true)
     {
+        var line = SendRaw(request, spawnIfMissing);
+        return ProtocolSerializer.DeserializeResponse(line)
+            ?? throw new AutomationException(
+                ErrorCodes.InternalError,
+                "The daemon sent an unparseable response."
+            );
+    }
+
+    public string SendRaw(DaemonRequest request, bool spawnIfMissing = true)
+    {
         for (var attempt = 0; attempt < 2; attempt++)
         {
             if (!EnsureConnected(spawnIfMissing))
             {
-                return DaemonResponse.Success(new AckPayload { Detail = "daemon not running" });
+                return ProtocolSerializer.SerializeResponse(
+                    DaemonResponse.Success(new AckPayload { Detail = "daemon not running" })
+                );
             }
 
             try
@@ -75,11 +87,7 @@ public sealed class DaemonClient : IDisposable
                     continue;
                 }
 
-                return ProtocolSerializer.DeserializeResponse(line)
-                    ?? throw new AutomationException(
-                        ErrorCodes.InternalError,
-                        "The daemon sent an unparseable response."
-                    );
+                return line;
             }
             catch (IOException)
             {
@@ -176,12 +184,17 @@ public sealed class DaemonClient : IDisposable
 
     private void SpawnDaemon()
     {
-        var executable =
+        var clientExecutable =
             _getProcessPath()
             ?? throw new AutomationException(
                 ErrorCodes.InternalError,
                 "Cannot determine the agent-windows executable path to start the daemon."
             );
+        var siblingDaemon = Path.Combine(
+            Path.GetDirectoryName(Path.GetFullPath(clientExecutable))!,
+            "agent-windows-daemon.exe"
+        );
+        var executable = File.Exists(siblingDaemon) ? siblingDaemon : clientExecutable;
         var startInfo = new ProcessStartInfo
         {
             FileName = executable,
