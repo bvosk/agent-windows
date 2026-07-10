@@ -11,26 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: jdx/mise-action@v4
         with:
-          global-json-file: global.json
+          version: 2026.7.0
+          cache: true
 
-      - name: Restore dotnet tools
-        run: dotnet tool restore
+      - name: Restore repository tools
+        run: mise run setup:ci
 
-      - name: Check formatting
-        run: dotnet csharpier check .
-
-      - name: Build (warnings are errors)
-        run: dotnet build AgentWindows.slnx
-
-      - name: Test with coverage
-        run: dotnet test AgentWindows.slnx -- --coverlet --results-directory ./artifacts/coverage-raw
-
-      - name: Coverage report
-        run: |
-          dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:lineCoverage=100" "minimumCoverageThresholds:branchCoverage=100" "minimumCoverageThresholds:methodCoverage=100" "minimumCoverageThresholds:fullMethodCoverage=100"
-          type artifacts\coverage\Summary.txt
+      - name: Full quality gate
+        run: mise run check:full
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -43,14 +33,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: jdx/mise-action@v4
         with:
-          global-json-file: global.json
-
-      - name: Build
-        run: dotnet build AgentWindows.slnx
+          version: 2026.7.0
+          cache: true
 
       - name: End-to-end tests
-        run: dotnet test tests/AgentWindows.E2e.Tests --no-build
-        env:
-          AGENT_WINDOWS_E2E: "1"
+        run: mise run e2e
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-diagnostics
+          path: artifacts/test-diagnostics
+          if-no-files-found: ignore

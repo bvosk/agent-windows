@@ -94,24 +94,33 @@ Requires Windows and the .NET 10 SDK ([mise](https://mise.jdx.dev) manages it):
 
 ```
 mise run setup      # install tools, restore, git hooks
+mise run check      # fast headless gate: lint, build, tests, and coverage
+mise run check:full # check + dependency audit/freshness + release artifact smoke
 mise run build      # analyzer-enforced build (warnings are errors)
 mise run test       # unit + architecture tests (e2e tests auto-skip)
 mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target app
-mise run coverage   # tests + HTML coverage report under artifacts/coverage
-mise run check      # formatting + analyzers + strict Core/CLI coverage gate
+mise run test:diagnostics # tests with crash/hang dumps and MTP diagnostics enabled
+mise run coverage   # parallel non-E2E tests + gated HTML report under artifacts/coverage
 mise run format     # CSharpier
+mise run powershell:check # pinned PSScriptAnalyzer against repository scripts
 mise run deps:check # report outdated or vulnerable dependencies without changing files
 mise run bench      # hyperfine latency benchmark against the bundled target app
 mise run profile    # dotnet-trace capture of the daemon under snapshot load
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
+mise run artifact:smoke # publish, install, and invoke the exact produced artifacts
 mise run reinstall  # publish, stop all daemons, and replace the global tool
+mise run doctor     # explicit local toolchain diagnostics
 ```
+
+The everyday `check` excludes network-heavy dependency freshness, release
+publishing, environment diagnostics, and desktop E2E tests. Use `check:full`
+before release-oriented changes; E2E remains an explicit, separate task.
 
 Dependency maintenance is local and explicit:
 
 ```bash
 mise run deps:check                 # read-only freshness and vulnerability report
-mise run deps:update                # latest stable NuGet packages and local dotnet tools
+mise run deps:update                # latest stable NuGet, dotnet, and PowerShell tools
 mise run deps:fix-vulnerable        # smallest available safe NuGet upgrades
 mise run deps:update -- -Force      # bypass the clean-worktree safeguard
 ```
@@ -119,6 +128,8 @@ mise run deps:update -- -Force      # bypass the clean-worktree safeguard
 The mutating commands require a clean Git worktree by default and run formatting,
 build, unit tests, and architecture tests after changing dependencies. They report
 SDK and mise updates but do not change `global.json` or machine-installed tools.
+NuGet lock files make normal and CI restores reproducible; dependency updates
+regenerate them intentionally.
 
 To install the CLI globally after publishing:
 
@@ -135,9 +146,9 @@ named pipes, snapshots, refs, and design tradeoffs, open the
 [architecture walkthrough](docs/architecture-walkthrough.html) in a browser.
 
 - `src/AgentWindows.Core` — cross-platform, dependency-free, and grouped by capability: `Dispatch`, `Elements`, `Input`, `Protocol`, `Session`, `Snapshots`, and `Windows`. Protocol types are further grouped by `Capture`, `Interaction`, `Lifecycle`, `Transport`, and `Windows`. This is where the unit-test coverage lives.
-- `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA, grouped into `Input`, `Session`, `Snapshots`, and `Windows`. Verified by integration smoke tests, excluded from unit coverage.
+- `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA, grouped into `Input`, `Session`, `Snapshots`, and `Windows`. Win32 SDK calls use CsWin32-generated typed bindings where last-error semantics permit it. This layer is exercised primarily by E2E tests and is included in the repository coverage baseline.
 - `src/AgentWindows.Cli` — System.CommandLine front end grouped into `ConsoleHost` and `Daemon`; the composition root remains in `Program.cs`.
 - Test folders mirror their production capability folders. End-to-end test plumbing lives under `Infrastructure`, while user-visible workflows live under `Scenarios`.
 - Architecture tests (NetArchTest) enforce the layering: Core never references FlaUI or the other projects.
-- The unit-test quality gate requires 100% line, branch, method, and full-method coverage for Core and CLI after a small, architecture-tested allowlist of native composition roots. Automation remains owned by the desktop e2e gate; the dotnet-tool launcher is validated by the publish/reinstall smoke path.
+- The non-E2E quality gate enforces a 50% aggregate line-coverage baseline across Core, CLI, and Automation. Native composition exclusions remain architecture-tested, Automation is primarily validated by E2E, and the dotnet-tool launcher is validated by the publish/reinstall smoke path.
 - `tests/AgentWindows.E2eTarget` + `tests/AgentWindows.E2e.Tests` — end-to-end suite: a bundled WPF app with stable AutomationIds, driven by spawning the real CLI (auto-spawned daemon, unique `--session` per test class, assertions on the `--json` envelope). Gated behind `AGENT_WINDOWS_E2E=1` so plain `dotnet test` runs stay headless; run via `mise run e2e` or the CI e2e job.

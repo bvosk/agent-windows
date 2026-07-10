@@ -1,6 +1,7 @@
 bin/
 obj/
 artifacts/
+.tools/
 TestResults/
 *.user
 .vs/

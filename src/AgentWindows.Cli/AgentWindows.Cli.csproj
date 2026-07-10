@@ -6,8 +6,11 @@
         <AssemblyName>agent-windows</AssemblyName>
         <Version>0.1.0</Version>
         <IsPackable>false</IsPackable>
-        <!-- Cuts per-command JIT cost in published bits (each CLI call is a new process). -->
-        <PublishReadyToRun>true</PublishReadyToRun>
+        <!-- ReadyToRun benefits the win-x64 self-contained CLI. The framework-dependent
+             dotnet-tool payload stays IL-only so its `any` package remains host-portable. -->
+        <PublishReadyToRun Condition="'$(SelfContained)' == 'true'">true</PublishReadyToRun>
+        <!-- Analyze APIs for compatibility with the self-contained single-file artifact. -->
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
         <!-- LibraryImport source generation (pipe probe) requires unsafe. -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>

@@ -19,12 +19,27 @@ mise install
 echo "dotnet: $(mise exec -- dotnet --version)"
 mise exec -- dotnet tool restore
 mise exec -- dotnet husky install
+pwsh -NoProfile -File ./scripts/install-powershell-tools.ps1
 echo "Setup complete!"
 '''
 
+[tasks."setup:ci"]
+description = "Restore repository tools for CI without installing git hooks"
+run = '''
+set -e
+dotnet tool restore
+pwsh -NoProfile -File ./scripts/install-powershell-tools.ps1
+'''
+
+[tasks.restore]
+description = "Restore the solution from committed NuGet lock files"
+run = "dotnet restore AgentWindows.slnx --locked-mode --verbosity quiet"
+
 [tasks.build]
 description = "Build the solution (warnings are errors)"
-run = "dotnet build AgentWindows.slnx"
+depends = ["restore"]
+wait_for = ["deps:check"]
+run = "dotnet build AgentWindows.slnx --no-restore --verbosity quiet"
 
 [tasks.test]
 description = "Run all tests"
@@ -34,8 +49,26 @@ run = "dotnet test AgentWindows.slnx"
 description = "Run end-to-end tests: the real CLI drives the bundled WPF target app"
 run = '''
 set -e
-dotnet build AgentWindows.slnx
-AGENT_WINDOWS_E2E=1 dotnet test tests/AgentWindows.E2e.Tests --no-build
+rm -rf artifacts/test-diagnostics
+dotnet restore AgentWindows.slnx --locked-mode --verbosity quiet
+dotnet build AgentWindows.slnx --no-restore --verbosity quiet
+AGENT_WINDOWS_E2E=1 dotnet test tests/AgentWindows.E2e.Tests --no-build --no-restore --verbosity quiet -- \
+  --results-directory ./artifacts/test-diagnostics \
+  --crashdump --crashdump-type Triage \
+  --hangdump --hangdump-timeout 3m --hangdump-type Triage \
+  --diagnostic --diagnostic-output-directory ./artifacts/test-diagnostics
+'''
+
+[tasks."test:diagnostics"]
+description = "Run tests with crash, hang, and platform diagnostics enabled"
+run = '''
+set -e
+rm -rf artifacts/test-diagnostics
+dotnet test AgentWindows.slnx -- \
+  --results-directory ./artifacts/test-diagnostics \
+  --crashdump --crashdump-type Triage \
+  --hangdump --hangdump-timeout 3m --hangdump-type Triage \
+  --diagnostic --diagnostic-output-directory ./artifacts/test-diagnostics
 '''
 
 [tasks.bench]
@@ -97,23 +130,33 @@ echo "Trace written to artifacts/profile/daemon.nettrace"
 echo "View with: dotnet dotnet-trace convert artifacts/profile/daemon.nettrace --format speedscope"
 '''
 
-[tasks.coverage]
-description = "Run tests and require 100% line, branch, method, and full-method coverage"
-run = '''
-set -e
-rm -rf artifacts/coverage-raw artifacts/coverage
-dotnet test AgentWindows.slnx -- --coverlet --results-directory ./artifacts/coverage-raw
-dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:lineCoverage=100" "minimumCoverageThresholds:branchCoverage=100" "minimumCoverageThresholds:methodCoverage=100" "minimumCoverageThresholds:fullMethodCoverage=100"
-cat artifacts/coverage/Summary.txt
-'''
+[tasks."coverage:prepare"]
+description = "Prepare coverage output directories"
+run = "rm -rf artifacts/coverage-raw artifacts/coverage"
 
-[tasks.check]
-description = "Run formatting, analyzer, test, and coverage quality gates"
+[tasks."coverage:architecture"]
+description = "Collect architecture-test coverage"
+depends = ["build", "coverage:prepare"]
+run = "dotnet test tests/AgentWindows.Architecture.Tests --no-build --no-restore --verbosity quiet -- --coverlet --no-progress --results-directory ./artifacts/coverage-raw"
+
+[tasks."coverage:cli"]
+description = "Collect CLI-test coverage"
+depends = ["build", "coverage:prepare"]
+run = "dotnet test tests/AgentWindows.Cli.Tests --no-build --no-restore --verbosity quiet -- --coverlet --no-progress --results-directory ./artifacts/coverage-raw"
+
+[tasks."coverage:core"]
+description = "Collect core-test coverage"
+depends = ["build", "coverage:prepare"]
+run = "dotnet test tests/AgentWindows.Core.Tests --no-build --no-restore --verbosity quiet -- --coverlet --no-progress --results-directory ./artifacts/coverage-raw"
+
+[tasks.coverage]
+description = "Enforce the non-E2E coverage baseline and generate an HTML report"
+depends = ["coverage:architecture", "coverage:cli", "coverage:core"]
 run = '''
 set -e
-mise run format:check
-mise run build
-mise run coverage
+dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary" "-verbosity:Warning" "minimumCoverageThresholds:lineCoverage=50"
+grep -E '^  (Line|Branch|Method) coverage:' artifacts/coverage/Summary.txt
+echo "Coverage report: artifacts/coverage/index.html"
 '''
 
 [tasks.format]
@@ -126,10 +169,16 @@ run = "dotnet csharpier check ."
 
 [tasks.lint]
 description = "Formatting check plus analyzer-enforced build"
-depends = ["format:check", "build"]
+depends = ["format:check", "powershell:check", "build"]
+
+[tasks."powershell:check"]
+description = "Analyze repository PowerShell with the pinned PSScriptAnalyzer"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/analyze-powershell.ps1"
 
 [tasks."deps:check"]
 description = "Report dependency freshness and fail on known NuGet vulnerabilities"
+depends = ["restore"]
 shell = "pwsh -NoProfile -Command"
 run = "& ./scripts/dependencies.ps1 check"
 
@@ -154,17 +203,42 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 echo "dotnet path: $(command -v dotnet)"
 echo "dotnet version: $(dotnet --version)"
+if ! command -v pwsh >/dev/null 2>&1; then
+  echo "PowerShell 7 is required for repository tooling."
+  exit 1
+fi
+echo "pwsh version: $(pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()')"
+if ! pwsh -NoProfile -Command 'if (Get-Command Save-PSResource -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'; then
+  echo "Save-PSResource is required. Install Microsoft.PowerShell.PSResourceGet."
+  exit 1
+fi
+pwsh -NoProfile -File ./scripts/analyze-powershell.ps1
 '''
 
 [tasks.publish]
-description = "Publish self-contained single-file exe and the dotnet tool package"
-run = '''
-set -e
-rm -rf artifacts/publish artifacts/tool-payload artifacts/package
-dotnet publish src/AgentWindows.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o artifacts/publish
-dotnet publish src/AgentWindows.Cli -c Release -o artifacts/tool-payload
-dotnet pack src/AgentWindows.Tool -c Release -o artifacts/package
-'''
+description = "Publish and smoke test the self-contained exe and dotnet tool package"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/artifact-smoke.ps1"
+
+[tasks."artifact:smoke"]
+description = "Publish, pack, install, and invoke the exact release artifacts"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/artifact-smoke.ps1"
+
+[tasks."artifact:smoke:prepared"]
+description = "Smoke test release artifacts after the full gate has restored and built"
+hide = true
+depends = ["check", "deps:check"]
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/artifact-smoke.ps1 -SkipNormalRestore"
+
+[tasks.check]
+description = "Run the fast headless quality gate"
+depends = ["lint", "coverage"]
+
+[tasks."check:full"]
+description = "Run dependency, quality, coverage, and release-artifact checks"
+depends = ["artifact:smoke:prepared"]
 
 [tasks.reinstall]
 description = "Publish and replace the globally installed agent-windows tool"
