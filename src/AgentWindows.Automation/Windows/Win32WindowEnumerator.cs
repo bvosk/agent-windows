@@ -1,5 +1,7 @@
-using System.Runtime.InteropServices;
 using AgentWindows.Core.Windows;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace AgentWindows.Automation.Windows;
 
@@ -9,6 +11,8 @@ namespace AgentWindows.Automation.Windows;
 /// </summary>
 public static partial class Win32WindowEnumerator
 {
+    private static readonly WNDENUMPROC _enumCallback = EnumCallback;
+
     [ThreadStatic]
     private static EnumerationState? _current;
 
@@ -18,10 +22,7 @@ public static partial class Win32WindowEnumerator
         _current = state;
         try
         {
-            unsafe
-            {
-                _ = NativeMethods.EnumWindows(&EnumCallback, IntPtr.Zero);
-            }
+            _ = PInvoke.EnumWindows(_enumCallback, default);
         }
         finally
         {
@@ -31,27 +32,31 @@ public static partial class Win32WindowEnumerator
         return state.Windows;
     }
 
-    [UnmanagedCallersOnly]
-    private static int EnumCallback(IntPtr hwnd, IntPtr lParam)
+    private static BOOL EnumCallback(HWND hwnd, LPARAM lParam)
     {
+        if (lParam != default)
+        {
+            return false;
+        }
+
         var state = _current;
         if (state is null)
         {
-            return 0;
+            return false;
         }
 
-        if (!NativeMethods.IsWindowVisible(hwnd))
+        if (!PInvoke.IsWindowVisible(hwnd))
         {
-            return 1;
+            return true;
         }
 
         var title = GetWindowTitle(hwnd);
         if (title.Length == 0)
         {
-            return 1;
+            return true;
         }
 
-        _ = NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
+        _ = PInvoke.GetWindowThreadProcessId(hwnd, out var processId);
         var pid = (int)processId;
         // Name and elevation are per-process facts; many processes own several windows.
         if (!state.ProcessInfo.TryGetValue(pid, out var info))
@@ -64,83 +69,33 @@ public static partial class Win32WindowEnumerator
             new WindowInfo
             {
                 Title = title,
-                WindowHandle = hwnd.ToInt64(),
+                WindowHandle = ((IntPtr)hwnd).ToInt64(),
                 ProcessId = pid,
                 ProcessName = info.Name,
                 IsElevated = info.IsElevated,
                 Bounds = GetBounds(hwnd),
             }
         );
-        return 1;
+        return true;
     }
 
-    private static string GetWindowTitle(IntPtr hwnd)
+    private static string GetWindowTitle(HWND hwnd)
     {
-        var length = NativeMethods.GetWindowTextLengthW(hwnd);
+        var length = PInvoke.GetWindowTextLength(hwnd);
         if (length <= 0)
         {
             return "";
         }
 
         var buffer = new char[length + 1];
-        var copied = NativeMethods.GetWindowTextW(hwnd, buffer, buffer.Length);
+        var copied = PInvoke.GetWindowText(hwnd, buffer);
         return copied <= 0 ? "" : new string(buffer, 0, copied);
     }
 
-    private static BoundingRect? GetBounds(IntPtr hwnd) =>
-        NativeMethods.GetWindowRect(hwnd, out var rect)
-            ? new BoundingRect(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top)
+    private static BoundingRect? GetBounds(HWND hwnd) =>
+        PInvoke.GetWindowRect(hwnd, out var rect)
+            ? new BoundingRect(rect.X, rect.Y, rect.Width, rect.Height)
             : null;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WindowRect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    private static partial class NativeMethods
-    {
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static unsafe partial bool EnumWindows(
-            delegate* unmanaged<IntPtr, IntPtr, int> lpEnumFunc,
-            IntPtr lParam
-        );
-
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static partial bool IsWindowVisible(IntPtr hwnd);
-
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport("user32.dll", SetLastError = true)]
-        internal static partial int GetWindowTextLengthW(IntPtr hwnd);
-
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport(
-            "user32.dll",
-            SetLastError = true,
-            StringMarshalling = StringMarshalling.Utf16
-        )]
-        internal static partial int GetWindowTextW(
-            IntPtr hwnd,
-            [Out] char[] lpString,
-            int nMaxCount
-        );
-
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport("user32.dll")]
-        internal static partial uint GetWindowThreadProcessId(IntPtr hwnd, out uint lpdwProcessId);
-
-        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-        [LibraryImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static partial bool GetWindowRect(IntPtr hwnd, out WindowRect lpRect);
-    }
 
     private sealed class EnumerationState
     {

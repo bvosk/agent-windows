@@ -1,0 +1,10 @@
+EnumWindows
+GetTokenInformation
+GetWindowRect
+GetWindowText
+GetWindowTextLength
+GetWindowThreadProcessId
+IsWindowVisible
+OpenProcess
+OpenProcessToken
+QueryFullProcessImageName

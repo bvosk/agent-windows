@@ -48,6 +48,8 @@ public static partial class PipeProbe
 
     private static partial class NativeMethods
     {
+        // CsWin32 does not currently preserve WaitNamedPipe's last error. Keep this
+        // binding explicit because Exists relies on ERROR_FILE_NOT_FOUND.
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [LibraryImport(
             "kernel32.dll",
