@@ -130,6 +130,10 @@ The tool package needs the .NET 10 runtime; the self-contained `artifacts\publis
 
 ## Architecture
 
+For a broad-to-deep visual explanation of the runtime, Windows UI Automation, COM,
+named pipes, snapshots, refs, and design tradeoffs, open the
+[architecture walkthrough](docs/architecture-walkthrough.html) in a browser.
+
 - `src/AgentWindows.Core` — cross-platform, dependency-free, and grouped by capability: `Dispatch`, `Elements`, `Input`, `Protocol`, `Session`, `Snapshots`, and `Windows`. Protocol types are further grouped by `Capture`, `Interaction`, `Lifecycle`, `Transport`, and `Windows`. This is where the unit-test coverage lives.
 - `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA, grouped into `Input`, `Session`, `Snapshots`, and `Windows`. Verified by integration smoke tests, excluded from unit coverage.
 - `src/AgentWindows.Cli` — System.CommandLine front end grouped into `ConsoleHost` and `Daemon`; the composition root remains in `Program.cs`.
