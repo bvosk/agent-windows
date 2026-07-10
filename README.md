@@ -40,6 +40,7 @@ The first command auto-starts a background **daemon** that owns a single UI Auto
 | `close [--force]` | Close the target window (`--force` kills the process) |
 | `status` | Daemon pid, target, snapshot generation, ref count |
 | `daemon stop` | Shut down the daemon |
+| `skills get [name] [--full]` | Print the bundled agent skill (usage guide); `skills list` enumerates |
 
 Global options: `--json` (machine-readable envelope), `--session <name>` (parallel isolated daemons; also `AGENT_WINDOWS_SESSION`). Action commands accept `--timeout <ms>` (default 10000) and retry until the element is enabled and on-screen.
 
@@ -68,6 +69,17 @@ Every command supports `--json` and prints a single-line envelope:
 ```
 
 Error codes: `bad-request`, `no-target`, `not-found`, `unknown-ref`, `stale-ref`, `timeout`, `elevated-target`, `launch-failed`, `pattern-unsupported`, `internal-error`.
+
+## Agent skill
+
+[skill-data/agent-windows](skill-data/agent-windows/SKILL.md) is a bundled usage guide for AI agents, modeled on agent-browser's skill: the snapshot-and-ref loop, common workflows, Windows gotchas, and troubleshooting, plus reference deep-dives. It is embedded in the CLI, so agents can self-serve:
+
+```
+agent-windows skills get          # the skill body
+agent-windows skills get --full   # plus references/*.md
+```
+
+Install it with the [skills](https://skills.sh) CLI from a local checkout — `npx skills add ./skill-data/agent-windows` (or `<owner>/agent-windows` once published) — or copy `skill-data/agent-windows` into `.claude/skills/` (or `~/.claude/skills/`).
 
 ## Windows-specific notes
 

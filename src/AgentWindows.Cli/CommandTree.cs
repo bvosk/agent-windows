@@ -54,7 +54,60 @@ public static class CommandTree
         root.Subcommands.Add(BuildStatus(context));
         root.Subcommands.Add(BuildDaemon(context));
         root.Subcommands.Add(BuildRepl(context, root));
+        root.Subcommands.Add(BuildSkills());
         return root;
+    }
+
+    private static Command BuildSkills()
+    {
+        var skills = new Command("skills", "Bundled skill documentation for agents.");
+
+        var list = new Command("list", "List the bundled skills.");
+        list.SetAction(_ =>
+        {
+            foreach (var name in SkillCatalog.SkillNames)
+            {
+                Console.Out.WriteLine(name);
+            }
+        });
+        skills.Subcommands.Add(list);
+
+        var nameArgument = new Argument<string?>("name")
+        {
+            Description = "Skill name; defaults to the only bundled skill.",
+            Arity = ArgumentArity.ZeroOrOne,
+        };
+        var fullOption = new Option<bool>("--full")
+        {
+            Description = "Append the skill's reference files to the output.",
+        };
+        var get = new Command("get", "Print a bundled skill as markdown.");
+        get.Arguments.Add(nameArgument);
+        get.Options.Add(fullOption);
+        get.SetAction(parseResult =>
+        {
+            var name = parseResult.GetValue(nameArgument) ?? SkillCatalog.DefaultSkillName;
+            if (name is null)
+            {
+                Console.Error.WriteLine("no skill name given and no single default is available.");
+                return 1;
+            }
+
+            var text = SkillCatalog.Read(name, parseResult.GetValue(fullOption));
+            if (text is null)
+            {
+                Console.Error.WriteLine(
+                    $"unknown skill '{name}'. Available: {string.Join(", ", SkillCatalog.SkillNames)}"
+                );
+                return 1;
+            }
+
+            Console.Out.Write(text);
+            return 0;
+        });
+        skills.Subcommands.Add(get);
+
+        return skills;
     }
 
     private static Command BuildRepl(CommandContext context, RootCommand root)

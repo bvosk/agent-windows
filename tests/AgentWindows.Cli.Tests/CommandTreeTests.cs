@@ -34,6 +34,11 @@ public sealed class CommandTreeTests
     [InlineData("close --force")]
     [InlineData("status")]
     [InlineData("daemon stop")]
+    [InlineData("skills list")]
+    [InlineData("skills get")]
+    [InlineData("skills get agent-windows")]
+    [InlineData("skills get agent-windows --full")]
+    [InlineData("skills get --full")]
     [InlineData("list --json --session other")]
     public void Parse_AcceptsDocumentedCommandLines(string commandLine)
     {
@@ -78,6 +83,7 @@ public sealed class CommandTreeTests
             "status",
             "daemon",
             "repl",
+            "skills",
         ]);
     }
 }

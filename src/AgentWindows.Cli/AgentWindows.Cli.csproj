@@ -13,6 +13,14 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Agent-facing skill docs, served by 'agent-windows skills'. -->
+        <EmbeddedResource
+            Include="../../skill-data/**/*.md"
+            LogicalName="skill-data/%(RecursiveDir)%(Filename)%(Extension)"
+        />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="System.CommandLine" />
         <ProjectReference Include="../AgentWindows.Automation/AgentWindows.Automation.csproj" />
         <ProjectReference Include="../AgentWindows.Core/AgentWindows.Core.csproj" />
