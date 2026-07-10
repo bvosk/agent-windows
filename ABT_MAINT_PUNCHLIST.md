@@ -65,4 +65,3 @@ This punchlist captures improvements identified while using `agent-windows` to l
 
 - [x] Cursor movement is instantaneous after replacing FlaUI's animated `Mouse.MoveTo` behavior with direct `Mouse.Position` assignment.
 - [x] `mise run reinstall` republishes the project, stops all daemon sessions, replaces the global tool, and verifies the installed build.
-

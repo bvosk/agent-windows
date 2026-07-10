@@ -80,7 +80,7 @@ public sealed class DaemonClientTests
     }
 
     [Fact]
-    public void MissingPipe_SpawnsDaemonWithIsolatedStandardStreams()
+    public void MissingPipe_SpawnsHiddenDaemonWithoutRedirectedHandleInheritance()
     {
         var process = new TrackingDisposable();
         var connection = new ScriptedConnection(Success("ready"));
@@ -98,11 +98,12 @@ public sealed class DaemonClientTests
         response.Ok.ShouldBeTrue();
         var startInfo = harness.StartInfos.ShouldHaveSingleItem();
         startInfo.FileName.ShouldBe(@"C:\tools\agent-windows.exe");
-        startInfo.UseShellExecute.ShouldBeFalse();
-        startInfo.CreateNoWindow.ShouldBeTrue();
-        startInfo.RedirectStandardInput.ShouldBeTrue();
-        startInfo.RedirectStandardOutput.ShouldBeTrue();
-        startInfo.RedirectStandardError.ShouldBeTrue();
+        startInfo.UseShellExecute.ShouldBeTrue();
+        startInfo.WindowStyle.ShouldBe(ProcessWindowStyle.Hidden);
+        startInfo.CreateNoWindow.ShouldBeFalse();
+        startInfo.RedirectStandardInput.ShouldBeFalse();
+        startInfo.RedirectStandardOutput.ShouldBeFalse();
+        startInfo.RedirectStandardError.ShouldBeFalse();
         startInfo.ArgumentList.ShouldBe(["daemon", "run", "--session", "test"]);
         process.IsDisposed.ShouldBeTrue();
         harness.ConnectTimeouts.ShouldBe([500]);

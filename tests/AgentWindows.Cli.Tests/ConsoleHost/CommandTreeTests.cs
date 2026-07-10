@@ -16,6 +16,15 @@ public sealed class CommandTreeTests
         _root = CommandTree.Build(out _context);
     }
 
+    [Fact]
+    public void Build_ConvenienceOverloadReturnsTheCompleteCommandTree()
+    {
+        var root = CommandTree.Build();
+
+        root.Subcommands.Select(command => command.Name)
+            .ShouldBe(_root.Subcommands.Select(command => command.Name));
+    }
+
     [Theory]
     [InlineData("list")]
     [InlineData("launch --app notepad.exe")]

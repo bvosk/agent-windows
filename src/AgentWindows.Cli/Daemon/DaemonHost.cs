@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipes;
 using AgentWindows.Automation.Session;
 using AgentWindows.Core.Dispatch;
@@ -14,6 +15,10 @@ namespace AgentWindows.Cli.Daemon;
 /// </summary>
 public static class DaemonHost
 {
+    [ExcludeFromCodeCoverage(
+        Justification = "Windows/FlaUI and native named-pipe composition root; validated by "
+            + "daemon-lifecycle end-to-end tests."
+    )]
     public static int Run(string session)
     {
         var pipeName = PipeNames.For(session);
@@ -108,6 +113,10 @@ public static class DaemonHost
         return true;
     }
 
+    [ExcludeFromCodeCoverage(
+        Justification = "Native named-pipe factory is exercised by daemon-lifecycle end-to-end "
+            + "tests; creation policy is unit tested through CreateServer."
+    )]
     private static Stream CreateNamedPipeServer(string pipeName) =>
         new NamedPipeServerStream(pipeName, PipeDirection.InOut, maxNumberOfServerInstances: 1);
 }

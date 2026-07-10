@@ -1,8 +1,9 @@
 {
   "platformOptions": {
     "Coverlet": {
+      "include": "[*]*",
       "exclude": "[coverlet.*]*,[xunit.*]*,[Microsoft.Testing.*]*,[Microsoft.Testplatform.*]*,[Microsoft.VisualStudio.TestPlatform.*]*,[MSTest*]*,[testhost*]*,[AgentWindows.Automation]*",
-      "excludeByAttribute": "ExcludeFromCodeCoverage,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute,AsyncStateMachineAttribute,IteratorStateMachineAttribute,Obsolete",
+      "excludeByAttribute": "ExcludeFromCodeCoverage,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute",
       "excludeByFile": "**/obj/**/*.cs",
       "format": "cobertura",
       "includeTestAssembly": false,

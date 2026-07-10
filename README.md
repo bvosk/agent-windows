@@ -98,7 +98,7 @@ mise run build      # analyzer-enforced build (warnings are errors)
 mise run test       # unit + architecture tests (e2e tests auto-skip)
 mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target app
 mise run coverage   # tests + HTML coverage report under artifacts/coverage
-mise run check      # formatting + analyzers + tests + 100% branch coverage gate
+mise run check      # formatting + analyzers + strict Core/CLI coverage gate
 mise run format     # CSharpier
 mise run bench      # hyperfine latency benchmark against the bundled target app
 mise run profile    # dotnet-trace capture of the daemon under snapshot load
@@ -121,4 +121,5 @@ The tool package needs the .NET 10 runtime; the self-contained `artifacts\publis
 - `src/AgentWindows.Cli` — System.CommandLine front end grouped into `ConsoleHost` and `Daemon`; the composition root remains in `Program.cs`.
 - Test folders mirror their production capability folders. End-to-end test plumbing lives under `Infrastructure`, while user-visible workflows live under `Scenarios`.
 - Architecture tests (NetArchTest) enforce the layering: Core never references FlaUI or the other projects.
+- The unit-test quality gate requires 100% line, branch, method, and full-method coverage for Core and CLI after a small, architecture-tested allowlist of native composition roots. Automation remains owned by the desktop e2e gate; the dotnet-tool launcher is validated by the publish/reinstall smoke path.
 - `tests/AgentWindows.E2eTarget` + `tests/AgentWindows.E2e.Tests` — end-to-end suite: a bundled WPF app with stable AutomationIds, driven by spawning the real CLI (auto-spawned daemon, unique `--session` per test class, assertions on the `--json` envelope). Gated behind `AGENT_WINDOWS_E2E=1` so plain `dotnet test` runs stay headless; run via `mise run e2e` or the CI e2e job.

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using AgentWindows.Core.Protocol.Lifecycle;
 using AgentWindows.Core.Protocol.Transport;
 using AgentWindows.Core.Session;
@@ -15,6 +16,10 @@ public static class DaemonManager
     private static readonly Action<TimeSpan> _sleep = Thread.Sleep;
     private static readonly Func<string, DaemonResponse> _stopSession = StopSession;
 
+    [ExcludeFromCodeCoverage(
+        Justification = "Process-wide composition wrapper; orchestration is covered through the "
+            + "injectable overload and production wiring is exercised by the reinstall smoke path."
+    )]
     public static DaemonResponse StopAll() =>
         StopAll(_listSessions, _pipeExists, _stopSession, _getTimestamp, _getElapsedTime, _sleep);
 
@@ -59,6 +64,10 @@ public static class DaemonManager
         return DaemonResponse.Success(new AckPayload { Detail = detail });
     }
 
+    [ExcludeFromCodeCoverage(
+        Justification = "Real daemon-client transport is covered by daemon-lifecycle end-to-end "
+            + "tests; stop-all orchestration uses the injected delegate in unit tests."
+    )]
     private static DaemonResponse StopSession(string session)
     {
         using var client = new DaemonClient(session);

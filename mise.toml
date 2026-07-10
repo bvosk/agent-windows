@@ -98,12 +98,12 @@ echo "View with: dotnet dotnet-trace convert artifacts/profile/daemon.nettrace -
 '''
 
 [tasks.coverage]
-description = "Run tests, generate a report, and require 100% branch coverage"
+description = "Run tests and require 100% line, branch, method, and full-method coverage"
 run = '''
 set -e
 rm -rf artifacts/coverage-raw artifacts/coverage
 dotnet test AgentWindows.slnx -- --coverlet --results-directory ./artifacts/coverage-raw
-dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:branchCoverage=100"
+dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:lineCoverage=100" "minimumCoverageThresholds:branchCoverage=100" "minimumCoverageThresholds:methodCoverage=100" "minimumCoverageThresholds:fullMethodCoverage=100"
 cat artifacts/coverage/Summary.txt
 '''
 

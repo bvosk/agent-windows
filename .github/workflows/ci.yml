@@ -29,7 +29,7 @@ jobs:
 
       - name: Coverage report
         run: |
-          dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:branchCoverage=100"
+          dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:lineCoverage=100" "minimumCoverageThresholds:branchCoverage=100" "minimumCoverageThresholds:methodCoverage=100" "minimumCoverageThresholds:fullMethodCoverage=100"
           type artifacts\coverage\Summary.txt
 
       - uses: actions/upload-artifact@v4
