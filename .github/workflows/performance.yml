@@ -35,7 +35,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/perf-data" | Out-Null
           git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
-          if ($LASTEXITCODE -eq 0) {
+          $fetched = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($fetched) {
             git worktree add "$env:RUNNER_TEMP/perf-data" refs/remotes/origin/perf-data
           }
 
@@ -194,7 +196,9 @@ jobs:
         run: |
           Copy-Item publisher/scripts/performance/Build-PerformanceSite.ps1 "$env:RUNNER_TEMP/Build-PerformanceSite.ps1"
           git -C publisher fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
-          if ($LASTEXITCODE -eq 0) {
+          $fetched = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($fetched) {
             git -C publisher switch --force-create perf-data refs/remotes/origin/perf-data
           } else {
             git -C publisher switch --orphan perf-data
@@ -258,7 +262,9 @@ jobs:
           $runs = @{}
           $shas = @(git rev-list --reverse --topo-order "$env:BASE_SHA..$env:HEAD_SHA")
           git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
-          if ($LASTEXITCODE -eq 0) {
+          $fetched = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($fetched) {
             foreach ($sha in $shas) {
               $json = git show "refs/remotes/origin/perf-data:results/v1/pr-$env:PR_NUMBER/$sha.json" 2>$null
               if ($LASTEXITCODE -eq 0) {
