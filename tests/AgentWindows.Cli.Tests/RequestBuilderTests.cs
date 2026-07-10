@@ -18,6 +18,7 @@ public sealed class RequestBuilderTests
     [Theory]
     [InlineData("640")]
     [InlineData("a,b")]
+    [InlineData("1,b")]
     [InlineData("1,2,3")]
     [InlineData("")]
     public void ParsePoint_RejectsMalformedInput(string at)
@@ -71,6 +72,15 @@ public sealed class RequestBuilderTests
         RequestBuilder
             .BuildClick("@e1", null, false, true, false, 1000)
             .Button.ShouldBe(MouseButtonKind.Middle);
+    }
+
+    [Fact]
+    public void BuildClick_DefaultsToLeftButton()
+    {
+        var request = RequestBuilder.BuildClick("@e1", null, false, false, false, 1000);
+
+        request.Ref.ShouldBe("@e1");
+        request.Button.ShouldBe(MouseButtonKind.Left);
     }
 
     [Fact]

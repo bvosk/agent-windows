@@ -25,4 +25,8 @@
         <ProjectReference Include="../AgentWindows.Automation/AgentWindows.Automation.csproj" />
         <ProjectReference Include="../AgentWindows.Core/AgentWindows.Core.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="AgentWindows.Cli.Tests" />
+    </ItemGroup>
 </Project>

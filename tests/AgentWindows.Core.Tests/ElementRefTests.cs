@@ -33,4 +33,27 @@ public sealed class ElementRefTests
 
     [Fact]
     public void Display_PrefixesWithAtSign() => ElementRef.Display("e7").ShouldBe("@e7");
+
+    [Theory]
+    [InlineData("e0", 0)]
+    [InlineData("e5", 5)]
+    [InlineData("e2147483647", int.MaxValue)]
+    public void TryGetIndex_ExtractsNumericSuffix(string bareRef, int expected)
+    {
+        ElementRef.TryGetIndex(bareRef, out var index).ShouldBeTrue();
+        index.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("e")]
+    [InlineData("x5")]
+    [InlineData("e-1")]
+    [InlineData("e2147483648")]
+    public void TryGetIndex_RejectsInvalidBareRefs(string? bareRef)
+    {
+        ElementRef.TryGetIndex(bareRef!, out var index).ShouldBeFalse();
+        index.ShouldBe(0);
+    }
 }

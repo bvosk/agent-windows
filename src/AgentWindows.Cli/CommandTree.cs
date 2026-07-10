@@ -1,5 +1,6 @@
 using System.CommandLine;
 using AgentWindows.Core.Protocol;
+using AgentWindows.Core.Session;
 
 namespace AgentWindows.Cli;
 
@@ -559,8 +560,26 @@ public static class CommandTree
         run.SetAction(parseResult => DaemonHost.Run(context.GetSession(parseResult)));
         daemon.Subcommands.Add(run);
 
-        var stop = new Command("stop", "Stop the daemon for this session.");
+        var allOption = new Option<bool>("--all") { Description = "Stop every daemon session." };
+        var stop = new Command("stop", "Stop the daemon for this session, or every session.");
+        stop.Options.Add(allOption);
         context.Attach(stop, _ => new ShutdownRequest());
+        stop.SetAction(parseResult =>
+        {
+            if (!parseResult.GetValue(allOption))
+            {
+                return context.Execute(parseResult, new ShutdownRequest());
+            }
+
+            try
+            {
+                return context.Render(parseResult, DaemonManager.StopAll());
+            }
+            catch (AutomationException ex)
+            {
+                return context.Render(parseResult, DaemonResponse.Failure(ex.Code, ex.Message));
+            }
+        });
         daemon.Subcommands.Add(stop);
 
         return daemon;

@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipes;
 using AgentWindows.Automation;
 using AgentWindows.Core.Dispatch;
@@ -14,42 +13,52 @@ namespace AgentWindows.Cli;
 /// </summary>
 public static class DaemonHost
 {
-    [SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "The server stream from CreateServer is disposed by the using declaration."
-    )]
     public static int Run(string session)
     {
         var pipeName = PipeNames.For(session);
         using var automationSession = new FlaUiSession();
         var dispatcher = new RequestDispatcher(automationSession);
+        return RunLoop(
+            pipeName,
+            static name => CreateServer(name, CreateNamedPipeServer),
+            static server => ((NamedPipeServerStream)server).WaitForConnection(),
+            dispatcher.Dispatch,
+            Stopwatch.GetTimestamp,
+            Stopwatch.GetElapsedTime
+        );
+    }
+
+    internal static int RunLoop(
+        string pipeName,
+        Func<string, Stream?> createServer,
+        Action<Stream> waitForConnection,
+        Func<DaemonRequest, DaemonResponse> dispatch,
+        Func<long> getTimestamp,
+        Func<long, TimeSpan> getElapsedTime
+    )
+    {
         while (true)
         {
-            using var server = CreateServer(pipeName);
+            using var server = createServer(pipeName);
             if (server is null)
             {
                 // Another daemon already owns this session's pipe.
                 return 0;
             }
 
-            server.WaitForConnection();
-            if (!ServeClient(server, dispatcher))
+            waitForConnection(server);
+            if (!ServeClient(server, dispatch, getTimestamp, getElapsedTime))
             {
                 return 0;
             }
         }
     }
 
-    private static NamedPipeServerStream? CreateServer(string pipeName)
+    internal static Stream? CreateServer(string pipeName, Func<string, Stream> createServer)
     {
         try
         {
-            return new NamedPipeServerStream(
-                pipeName,
-                PipeDirection.InOut,
-                maxNumberOfServerInstances: 1
-            );
+            return createServer(pipeName);
         }
         catch (IOException)
         {
@@ -58,7 +67,12 @@ public static class DaemonHost
     }
 
     /// <summary>Serves one client connection. Returns false when shutdown was requested.</summary>
-    private static bool ServeClient(NamedPipeServerStream server, RequestDispatcher dispatcher)
+    internal static bool ServeClient(
+        Stream server,
+        Func<DaemonRequest, DaemonResponse> dispatch,
+        Func<long> getTimestamp,
+        Func<long, TimeSpan> getElapsedTime
+    )
     {
         try
         {
@@ -66,17 +80,17 @@ public static class DaemonHost
             using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
             while (reader.ReadLine() is { } line)
             {
-                var started = Stopwatch.GetTimestamp();
+                var started = getTimestamp();
                 var request = ProtocolSerializer.DeserializeRequest(line);
                 var response = request is null
                     ? DaemonResponse.Failure(
                         ErrorCodes.BadRequest,
                         "The daemon received an unparseable request."
                     )
-                    : dispatcher.Dispatch(request);
+                    : dispatch(request);
                 response = response with
                 {
-                    ElapsedMs = Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds, 1),
+                    ElapsedMs = Math.Round(getElapsedTime(started).TotalMilliseconds, 1),
                 };
                 writer.WriteLine(ProtocolSerializer.SerializeResponse(response));
                 if (request is ShutdownRequest)
@@ -92,4 +106,7 @@ public static class DaemonHost
 
         return true;
     }
+
+    private static Stream CreateNamedPipeServer(string pipeName) =>
+        new NamedPipeServerStream(pipeName, PipeDirection.InOut, maxNumberOfServerInstances: 1);
 }

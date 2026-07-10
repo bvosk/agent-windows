@@ -47,14 +47,14 @@ public sealed class CommandContext(Option<bool> jsonOption, Option<string> sessi
         return result is null || result.Implicit ? null : parseResult.GetValue(SessionOption);
     }
 
-    private int Execute(ParseResult parseResult, Func<ParseResult, DaemonRequest> build)
+    public int Execute(ParseResult parseResult, DaemonRequest request)
     {
-        var json = parseResult.GetValue(JsonOption);
+        ArgumentNullException.ThrowIfNull(parseResult);
+        ArgumentNullException.ThrowIfNull(request);
         var session = GetSession(parseResult);
         DaemonResponse response;
         try
         {
-            var request = build(parseResult);
             using var client = new DaemonClient(session);
             response = client.Send(request, spawnIfMissing: request is not ShutdownRequest);
         }
@@ -63,6 +63,21 @@ public sealed class CommandContext(Option<bool> jsonOption, Option<string> sessi
             response = DaemonResponse.Failure(ex.Code, ex.Message);
         }
 
-        return OutputRenderer.Render(response, json, Console.Out, Console.Error);
+        return Render(parseResult, response);
     }
+
+    public int Render(ParseResult parseResult, DaemonResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(parseResult);
+        ArgumentNullException.ThrowIfNull(response);
+        return OutputRenderer.Render(
+            response,
+            parseResult.GetValue(JsonOption),
+            Console.Out,
+            Console.Error
+        );
+    }
+
+    private int Execute(ParseResult parseResult, Func<ParseResult, DaemonRequest> build) =>
+        Execute(parseResult, build(parseResult));
 }

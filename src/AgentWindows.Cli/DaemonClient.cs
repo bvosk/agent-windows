@@ -10,14 +10,49 @@ namespace AgentWindows.Cli;
 /// Named-pipe client that keeps one connection open across sends (the REPL sends
 /// many requests per process). Auto-spawns the daemon when it is not yet running.
 /// </summary>
-public sealed class DaemonClient(string session) : IDisposable
+public sealed class DaemonClient : IDisposable
 {
     private static readonly TimeSpan _spawnTimeout = TimeSpan.FromSeconds(10);
-    private readonly string _pipeName = PipeNames.For(session);
-    private readonly string _session = session;
-    private NamedPipeClientStream? _pipe;
-    private StreamReader? _reader;
-    private StreamWriter? _writer;
+    private readonly Func<string?> _getProcessPath;
+    private readonly Func<long, TimeSpan> _getElapsedTime;
+    private readonly Func<long> _getTimestamp;
+    private readonly string _pipeName;
+    private readonly Func<string, bool> _pipeExists;
+    private readonly Func<string, int, IDaemonConnection> _connect;
+    private readonly string _session;
+    private readonly Func<ProcessStartInfo, IDisposable?> _startProcess;
+    private IDaemonConnection? _connection;
+
+    public DaemonClient(string session)
+        : this(
+            session,
+            PipeProbe.Exists,
+            NamedPipeConnection.Connect,
+            static () => Environment.ProcessPath,
+            static startInfo => Process.Start(startInfo),
+            Stopwatch.GetTimestamp,
+            Stopwatch.GetElapsedTime
+        ) { }
+
+    internal DaemonClient(
+        string session,
+        Func<string, bool> pipeExists,
+        Func<string, int, IDaemonConnection> connect,
+        Func<string?> getProcessPath,
+        Func<ProcessStartInfo, IDisposable?> startProcess,
+        Func<long> getTimestamp,
+        Func<long, TimeSpan> getElapsedTime
+    )
+    {
+        _session = session;
+        _pipeName = PipeNames.For(session);
+        _pipeExists = pipeExists;
+        _connect = connect;
+        _getProcessPath = getProcessPath;
+        _startProcess = startProcess;
+        _getTimestamp = getTimestamp;
+        _getElapsedTime = getElapsedTime;
+    }
 
     public DaemonResponse Send(DaemonRequest request, bool spawnIfMissing = true)
     {
@@ -30,8 +65,8 @@ public sealed class DaemonClient(string session) : IDisposable
 
             try
             {
-                _writer!.WriteLine(ProtocolSerializer.SerializeRequest(request));
-                var line = _reader!.ReadLine();
+                _connection!.WriteLine(ProtocolSerializer.SerializeRequest(request));
+                var line = _connection.ReadLine();
                 if (line is null)
                 {
                     // The daemon went away mid-conversation; reconnect and retry once.
@@ -61,45 +96,33 @@ public sealed class DaemonClient(string session) : IDisposable
 
     private void ResetConnection()
     {
-        _writer?.Dispose();
-        _reader?.Dispose();
-        _pipe?.Dispose();
-        _writer = null;
-        _reader = null;
-        _pipe = null;
+        _connection?.Dispose();
+        _connection = null;
     }
 
     private bool EnsureConnected(bool spawnIfMissing)
     {
-        if (_pipe is { IsConnected: true })
+        if (_connection is not null)
         {
             return true;
         }
 
-        ResetConnection();
-        var pipe = Connect(spawnIfMissing);
-        if (pipe is null)
+        var connection = Connect(spawnIfMissing);
+        if (connection is null)
         {
             return false;
         }
 
-        _pipe = pipe;
-        _reader = new StreamReader(pipe, leaveOpen: true);
-        _writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+        _connection = connection;
         return true;
     }
 
-    [SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "Ownership of the connected pipe transfers to the caller, which disposes it."
-    )]
-    private NamedPipeClientStream? Connect(bool spawnIfMissing)
+    private IDaemonConnection? Connect(bool spawnIfMissing)
     {
         // Probing pipe existence is free; NamedPipeClientStream.Connect(timeout)
         // otherwise burns its full timeout retrying when no daemon exists.
-        var pipeExists = PipeProbe.Exists(_pipeName);
-        if (pipeExists && TryConnect(TimeSpan.FromMilliseconds(250)) is { } pipe)
+        var pipeExists = _pipeExists(_pipeName);
+        if (pipeExists && TryConnect(250) is { } pipe)
         {
             return pipe;
         }
@@ -117,10 +140,10 @@ public sealed class DaemonClient(string session) : IDisposable
             SpawnDaemon();
         }
 
-        var deadline = Stopwatch.StartNew();
-        while (deadline.Elapsed < _spawnTimeout)
+        var started = _getTimestamp();
+        while (_getElapsedTime(started) < _spawnTimeout)
         {
-            if (TryConnect(TimeSpan.FromMilliseconds(500)) is { } spawned)
+            if (TryConnect(500) is { } spawned)
             {
                 return spawned;
             }
@@ -133,23 +156,19 @@ public sealed class DaemonClient(string session) : IDisposable
         );
     }
 
-    private NamedPipeClientStream? TryConnect(TimeSpan timeout)
+    private IDaemonConnection? TryConnect(int timeoutMs)
     {
-        var pipe = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut);
         try
         {
-            pipe.Connect((int)timeout.TotalMilliseconds);
-            return pipe;
+            return _connect(_pipeName, timeoutMs);
         }
         catch (TimeoutException)
         {
-            pipe.Dispose();
             return null;
         }
         catch (IOException)
         {
             // Pipe exists but is busy with another client; treat as not reachable yet.
-            pipe.Dispose();
             return null;
         }
     }
@@ -157,7 +176,7 @@ public sealed class DaemonClient(string session) : IDisposable
     private void SpawnDaemon()
     {
         var executable =
-            Environment.ProcessPath
+            _getProcessPath()
             ?? throw new AutomationException(
                 ErrorCodes.InternalError,
                 "Cannot determine the agent-windows executable path to start the daemon."
@@ -178,6 +197,6 @@ public sealed class DaemonClient(string session) : IDisposable
         startInfo.ArgumentList.Add("run");
         startInfo.ArgumentList.Add("--session");
         startInfo.ArgumentList.Add(_session);
-        using var process = Process.Start(startInfo);
+        using var process = _startProcess(startInfo);
     }
 }

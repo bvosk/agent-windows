@@ -228,10 +228,34 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
-    public void WindowMove_WithoutCoordinates_FailsWithBadRequest()
+    public void Attach_WithEachSelector_RoutesToSession()
+    {
+        var byTitle = _dispatcher.Dispatch(new AttachRequest { Title = "Editor" });
+        var byProcessId = _dispatcher.Dispatch(new AttachRequest { ProcessId = 42 });
+        var byWindowHandle = _dispatcher.Dispatch(new AttachRequest { WindowHandle = 0x1234 });
+
+        byTitle.Ok.ShouldBeTrue();
+        byProcessId.Ok.ShouldBeTrue();
+        byWindowHandle.Ok.ShouldBeTrue();
+        _session.Calls.ShouldBe([
+            "attach title=Editor pid= hwnd=",
+            "attach title= pid=42 hwnd=",
+            "attach title= pid= hwnd=4660",
+        ]);
+    }
+
+    [Theory]
+    [InlineData(10, null)]
+    [InlineData(null, 20)]
+    public void WindowMove_WithoutEitherCoordinate_FailsWithBadRequest(int? x, int? y)
     {
         var response = _dispatcher.Dispatch(
-            new WindowActionRequest { Action = Core.Model.WindowActionKind.Move, X = 10 }
+            new WindowActionRequest
+            {
+                Action = Core.Model.WindowActionKind.Move,
+                X = x,
+                Y = y,
+            }
         );
 
         response.Ok.ShouldBeFalse();
@@ -239,15 +263,23 @@ public sealed class RequestDispatcherTests : IDisposable
         _session.Calls.ShouldBeEmpty();
     }
 
-    [Fact]
-    public void WindowResize_WithoutDimensions_FailsWithBadRequest()
+    [Theory]
+    [InlineData(null, 20)]
+    [InlineData(10, null)]
+    public void WindowResize_WithoutEitherDimension_FailsWithBadRequest(int? width, int? height)
     {
         var response = _dispatcher.Dispatch(
-            new WindowActionRequest { Action = Core.Model.WindowActionKind.Resize }
+            new WindowActionRequest
+            {
+                Action = Core.Model.WindowActionKind.Resize,
+                Width = width,
+                Height = height,
+            }
         );
 
         response.Ok.ShouldBeFalse();
         response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
     }
 
     [Fact]
@@ -265,6 +297,7 @@ public sealed class RequestDispatcherTests : IDisposable
     {
         _dispatcher.Dispatch(new SelectRequest { Ref = "@e1", Item = "Red" });
         _dispatcher.Dispatch(new ExpandRequest { Ref = "@e2", Collapse = true });
+        _dispatcher.Dispatch(new ExpandRequest { Ref = "@e2", Collapse = false });
         _dispatcher.Dispatch(new ToggleRequest { Ref = "@e3", State = true });
         _dispatcher.Dispatch(
             new ScrollRequest { Ref = "@e4", Direction = Core.Model.ScrollDirection.Down }
@@ -273,16 +306,57 @@ public sealed class RequestDispatcherTests : IDisposable
         _dispatcher.Dispatch(
             new WindowActionRequest { Action = Core.Model.WindowActionKind.Maximize }
         );
+        _dispatcher.Dispatch(
+            new WindowActionRequest
+            {
+                Action = Core.Model.WindowActionKind.Move,
+                X = 10,
+                Y = 20,
+            }
+        );
+        _dispatcher.Dispatch(
+            new WindowActionRequest
+            {
+                Action = Core.Model.WindowActionKind.Resize,
+                Width = 800,
+                Height = 600,
+            }
+        );
         _dispatcher.Dispatch(new CloseRequest { Force = true });
 
         _session.Calls.ShouldBe([
             "select ref=e1 item=Red timeout=10000",
             "expand ref=e2 collapse=True timeout=10000",
+            "expand ref=e2 collapse=False timeout=10000",
             "toggle ref=e3 state=True timeout=10000",
             "scroll ref=e4 direction=Down amount=1 timeout=10000",
             @"screenshot ref= path=C:\shots\shot.png",
             "window action=Maximize x= y= width= height=",
+            "window action=Move x=10 y=20 width= height=",
+            "window action=Resize x= y= width=800 height=600",
             "close force=True",
         ]);
     }
+
+    [Fact]
+    public void Wait_WithRef_NormalizesAndPassesThrough()
+    {
+        var response = _dispatcher.Dispatch(new WaitRequest { Ref = "@e8" });
+
+        response.Ok.ShouldBeTrue();
+        _session.Calls.ShouldBe(["wait ref=e8 text= gone=False timeout=10000"]);
+    }
+
+    [Fact]
+    public void UnsupportedRequest_ReturnsBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new UnsupportedRequest());
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        response.Message.ShouldBe("Unsupported request type 'UnsupportedRequest'.");
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    private sealed record UnsupportedRequest : DaemonRequest;
 }

@@ -134,6 +134,26 @@ public sealed class OutputRendererTests
     }
 
     [Fact]
+    public void RenderPayload_StatusWithoutTarget_UsesNone()
+    {
+        var payload = new StatusPayload
+        {
+            Status = new SessionStatus
+            {
+                DaemonProcessId = 77,
+                SnapshotGeneration = 0,
+                RefCount = 0,
+            },
+        };
+
+        OutputRenderer.RenderPayload(payload).ShouldContain("target: none");
+    }
+
+    [Fact]
+    public void RenderPayload_AckWithoutDetail_UsesDone() =>
+        OutputRenderer.RenderPayload(new AckPayload()).ShouldBe("ok: done\n");
+
+    [Fact]
     public void RenderPayload_NullPayload_IsPlainOk() =>
         OutputRenderer.RenderPayload(null).ShouldBe("ok\n");
 }

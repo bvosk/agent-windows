@@ -1,4 +1,5 @@
 using System.CommandLine;
+using AgentWindows.Core.Protocol;
 using Shouldly;
 using Xunit;
 
@@ -6,7 +7,13 @@ namespace AgentWindows.Cli.Tests;
 
 public sealed class CommandTreeTests
 {
-    private readonly RootCommand _root = CommandTree.Build();
+    private readonly CommandContext _context;
+    private readonly RootCommand _root;
+
+    public CommandTreeTests()
+    {
+        _root = CommandTree.Build(out _context);
+    }
 
     [Theory]
     [InlineData("list")]
@@ -34,6 +41,7 @@ public sealed class CommandTreeTests
     [InlineData("close --force")]
     [InlineData("status")]
     [InlineData("daemon stop")]
+    [InlineData("daemon stop --all")]
     [InlineData("skills list")]
     [InlineData("skills get")]
     [InlineData("skills get agent-windows")]
@@ -85,5 +93,32 @@ public sealed class CommandTreeTests
             "repl",
             "skills",
         ]);
+    }
+
+    [Fact]
+    public void BuildRequest_LaunchLeavesMissingAppNameUnchanged()
+    {
+        var app = $"missing-{Guid.NewGuid():N}.exe";
+        File.Exists(app).ShouldBeFalse();
+        var result = _root.Parse($"launch --app {app}", CommandTree.CreateConfiguration());
+
+        var request = _context.BuildRequest(result).ShouldBeOfType<LaunchRequest>();
+
+        request.Path.ShouldBe(app);
+    }
+
+    [Fact]
+    public void BuildRequest_LaunchResolvesExistingAppPath()
+    {
+        var assemblyPath = typeof(CommandTreeTests).Assembly.Location;
+        var relativePath = Path.GetRelativePath(Environment.CurrentDirectory, assemblyPath);
+        var result = _root.Parse(
+            $"launch --app \"{relativePath}\"",
+            CommandTree.CreateConfiguration()
+        );
+
+        result.Errors.ShouldBeEmpty();
+        var request = _context.BuildRequest(result).ShouldBeOfType<LaunchRequest>();
+        request.Path.ShouldBe(Path.GetFullPath(relativePath));
     }
 }

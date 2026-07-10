@@ -110,7 +110,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
         };
 
     private DaemonResponse ExecuteAttach(AttachRequest request) =>
-        request is { Title: null, ProcessId: null, WindowHandle: null }
+        request.Title is null && request.ProcessId is null && request.WindowHandle is null
             ? throw new AutomationException(
                 ErrorCodes.BadRequest,
                 "attach requires --window <title>, --pid, or --hwnd."

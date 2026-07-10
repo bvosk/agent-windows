@@ -98,10 +98,12 @@ mise run build      # analyzer-enforced build (warnings are errors)
 mise run test       # unit + architecture tests (e2e tests auto-skip)
 mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target app
 mise run coverage   # tests + HTML coverage report under artifacts/coverage
+mise run check      # formatting + analyzers + tests + 100% branch coverage gate
 mise run format     # CSharpier
 mise run bench      # hyperfine latency benchmark against the bundled target app
 mise run profile    # dotnet-trace capture of the daemon under snapshot load
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
+mise run reinstall  # publish, stop all daemons, and replace the global tool
 ```
 
 To install the CLI globally after publishing:

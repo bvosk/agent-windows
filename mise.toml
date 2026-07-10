@@ -98,13 +98,22 @@ echo "View with: dotnet dotnet-trace convert artifacts/profile/daemon.nettrace -
 '''
 
 [tasks.coverage]
-description = "Run tests with coverage and generate an HTML report"
+description = "Run tests, generate a report, and require 100% branch coverage"
 run = '''
 set -e
 rm -rf artifacts/coverage-raw artifacts/coverage
 dotnet test AgentWindows.slnx -- --coverlet --results-directory ./artifacts/coverage-raw
-dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary"
+dotnet reportgenerator "-reports:artifacts/coverage-raw/coverage.cobertura.*.xml" "-targetdir:artifacts/coverage" "-reporttypes:Html;TextSummary;Cobertura" "minimumCoverageThresholds:branchCoverage=100"
 cat artifacts/coverage/Summary.txt
+'''
+
+[tasks.check]
+description = "Run formatting, analyzer, test, and coverage quality gates"
+run = '''
+set -e
+mise run format:check
+mise run build
+mise run coverage
 '''
 
 [tasks.format]
@@ -140,4 +149,22 @@ rm -rf artifacts/publish artifacts/tool-payload artifacts/package
 dotnet publish src/AgentWindows.Cli -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o artifacts/publish
 dotnet publish src/AgentWindows.Cli -c Release -o artifacts/tool-payload
 dotnet pack src/AgentWindows.Tool -c Release -o artifacts/package
+'''
+
+[tasks.reinstall]
+description = "Publish and replace the globally installed agent-windows tool"
+run = '''
+set -e
+mise run publish
+CLI=artifacts/publish/agent-windows.exe
+"$CLI" daemon stop --all
+dotnet tool uninstall --global AgentWindows >/dev/null 2>&1 || true
+dotnet tool install --global AgentWindows --add-source "$(pwd)/artifacts/package" --no-cache
+EXPECTED=$("$CLI" --version)
+ACTUAL=$(agent-windows --version)
+if [ "$ACTUAL" != "$EXPECTED" ]; then
+  echo "Installed version mismatch: expected $EXPECTED, got $ACTUAL"
+  exit 1
+fi
+echo "Installed agent-windows $ACTUAL"
 '''

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using AgentWindows.Core.Protocol;
 
 namespace AgentWindows.Cli;
 
@@ -10,16 +11,39 @@ namespace AgentWindows.Cli;
 public static partial class PipeProbe
 {
     private const int _errorFileNotFound = 2;
+    private const string _pipeDirectory = @"\\.\pipe\";
 
-    public static bool Exists(string pipeName)
+    public static IReadOnlyList<string> ListSessions() => ListSessions(Directory.EnumerateFiles);
+
+    public static bool Exists(string pipeName) =>
+        Exists(pipeName, NativeMethods.WaitNamedPipeW, Marshal.GetLastPInvokeError);
+
+    internal static IReadOnlyList<string> ListSessions(
+        Func<string, string, IEnumerable<string>> enumerateFiles
+    ) =>
+        enumerateFiles(_pipeDirectory, $"{PipeNames.Prefix}*")
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .Where(name => name.StartsWith(PipeNames.Prefix, StringComparison.Ordinal))
+            .Select(name => name[PipeNames.Prefix.Length..])
+            .Where(name => name.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+    internal static bool Exists(
+        string pipeName,
+        Func<string, int, bool> waitNamedPipe,
+        Func<int> getLastError
+    )
     {
-        if (NativeMethods.WaitNamedPipeW($@"\\.\pipe\{pipeName}", 0))
+        if (waitNamedPipe($@"\\.\pipe\{pipeName}", 0))
         {
             return true;
         }
 
         // Busy or timed-out pipes exist; only file-not-found means no daemon.
-        return Marshal.GetLastPInvokeError() != _errorFileNotFound;
+        return getLastError() != _errorFileNotFound;
     }
 
     private static partial class NativeMethods
