@@ -1,8 +1,9 @@
 using System.Globalization;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
-using AgentWindows.Core.Model;
 using AgentWindows.Core.Session;
-using AgentWindows.Core.Snapshot;
+using AgentWindows.Core.Snapshots;
+using AgentWindows.Core.Windows;
 
 namespace AgentWindows.Core.Tests.Fakes;
 

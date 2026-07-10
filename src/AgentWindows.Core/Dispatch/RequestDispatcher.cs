@@ -1,9 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
-using AgentWindows.Core.Model;
-using AgentWindows.Core.Protocol;
+using AgentWindows.Core.Protocol.Capture;
+using AgentWindows.Core.Protocol.Interaction;
+using AgentWindows.Core.Protocol.Lifecycle;
+using AgentWindows.Core.Protocol.Transport;
+using AgentWindows.Core.Protocol.Windows;
 using AgentWindows.Core.Session;
-using AgentWindows.Core.Snapshot;
+using AgentWindows.Core.Snapshots;
+using AgentWindows.Core.Windows;
 
 namespace AgentWindows.Core.Dispatch;
 

@@ -1,4 +1,4 @@
-using AgentWindows.Core.Model;
+using AgentWindows.Core.Windows;
 
 namespace AgentWindows.Core.Session;
 

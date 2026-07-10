@@ -1,6 +1,6 @@
 using AgentWindows.Core.Input;
-using AgentWindows.Core.Model;
-using AgentWindows.Core.Snapshot;
+using AgentWindows.Core.Snapshots;
+using AgentWindows.Core.Windows;
 
 namespace AgentWindows.Core.Session;
 

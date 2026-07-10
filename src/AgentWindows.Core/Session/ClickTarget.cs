@@ -1,3 +1,5 @@
+using AgentWindows.Core.Elements;
+
 namespace AgentWindows.Core.Session;
 
 /// <summary>Either a normalized element ref, or screen coordinates as a fallback.</summary>

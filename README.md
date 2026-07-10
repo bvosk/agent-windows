@@ -116,8 +116,9 @@ The tool package needs the .NET 10 runtime; the self-contained `artifacts\publis
 
 ## Architecture
 
-- `src/AgentWindows.Core` — cross-platform, dependency-free: protocol records (JSON source-generated), snapshot tree model and text formatter, ref parsing, key-gesture parsing, request dispatcher over `IAutomationSession`. This is where the unit-test coverage lives.
-- `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA: tree walking with ref assignment, pattern-based actions with retry/actionability, elevation detection. Verified by integration smoke tests, excluded from unit coverage.
-- `src/AgentWindows.Cli` — System.CommandLine front end, daemon host (named-pipe server), daemon client with auto-spawn, output rendering.
+- `src/AgentWindows.Core` — cross-platform, dependency-free, and grouped by capability: `Dispatch`, `Elements`, `Input`, `Protocol`, `Session`, `Snapshots`, and `Windows`. Protocol types are further grouped by `Capture`, `Interaction`, `Lifecycle`, `Transport`, and `Windows`. This is where the unit-test coverage lives.
+- `src/AgentWindows.Automation` — the only project that touches FlaUI/UIA, grouped into `Input`, `Session`, `Snapshots`, and `Windows`. Verified by integration smoke tests, excluded from unit coverage.
+- `src/AgentWindows.Cli` — System.CommandLine front end grouped into `ConsoleHost` and `Daemon`; the composition root remains in `Program.cs`.
+- Test folders mirror their production capability folders. End-to-end test plumbing lives under `Infrastructure`, while user-visible workflows live under `Scenarios`.
 - Architecture tests (NetArchTest) enforce the layering: Core never references FlaUI or the other projects.
 - `tests/AgentWindows.E2eTarget` + `tests/AgentWindows.E2e.Tests` — end-to-end suite: a bundled WPF app with stable AutomationIds, driven by spawning the real CLI (auto-spawned daemon, unique `--session` per test class, assertions on the `--json` envelope). Gated behind `AGENT_WINDOWS_E2E=1` so plain `dotnet test` runs stay headless; run via `mise run e2e` or the CI e2e job.

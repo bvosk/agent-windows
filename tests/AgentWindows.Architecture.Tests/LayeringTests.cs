@@ -1,5 +1,5 @@
-using AgentWindows.Automation;
-using AgentWindows.Core.Model;
+using AgentWindows.Automation.Session;
+using AgentWindows.Core.Snapshots;
 using NetArchTest.Rules;
 using Shouldly;
 using Xunit;
