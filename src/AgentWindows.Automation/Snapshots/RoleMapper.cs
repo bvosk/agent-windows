@@ -48,7 +48,15 @@ public static class RoleMapper
         [ControlType.TreeItem] = "treeitem",
         [ControlType.Window] = "window",
     };
+    private static readonly Dictionary<string, ControlType> _controlTypes = _roles.ToDictionary(
+        pair => pair.Value,
+        pair => pair.Key,
+        StringComparer.OrdinalIgnoreCase
+    );
 
     public static string ToRole(ControlType controlType) =>
         _roles.TryGetValue(controlType, out var role) ? role : "unknown";
+
+    public static bool TryGetControlType(string role, out ControlType controlType) =>
+        _controlTypes.TryGetValue(role, out controlType);
 }

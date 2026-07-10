@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using AgentWindows.Automation.Windows;
@@ -7,6 +8,7 @@ using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Conditions;
 using FlaUI.Core.Definitions;
+using FlaUI.Core.Identifiers;
 
 namespace AgentWindows.Automation.Snapshots;
 
@@ -41,7 +43,6 @@ public sealed class SnapshotBuilder
     ];
 
     private readonly Dictionary<string, AutomationElement> _refs = [];
-    private readonly List<(UiNode Node, AutomationElement Element)> _selectionFixups = [];
     private readonly SnapshotOptions _options;
     private readonly bool _cached;
     private int _nextRefIndex;
@@ -83,7 +84,6 @@ public sealed class SnapshotBuilder
         var node = cached
             ? builder.BuildTreeCached(root)
             : builder.BuildNode(root, 0, isRoot: true);
-        builder.ApplySelectionFixups();
         return new SnapshotBuildResult
         {
             Root = node ?? new UiNode { Role = "unknown" },
@@ -92,14 +92,25 @@ public sealed class SnapshotBuilder
         };
     }
 
-    private static CacheRequest CreateCacheRequest(AutomationBase automation)
+    private static CacheRequest CreateCacheRequest(
+        AutomationBase automation,
+        SnapshotOptions options
+    )
     {
         var properties = automation.PropertyLibrary;
         var patterns = automation.PatternLibrary;
         var cacheRequest = new CacheRequest
         {
-            TreeScope = TreeScope.Subtree,
-            TreeFilter = TrueCondition.Default,
+            TreeScope = options.MaxDepth switch
+            {
+                0 => TreeScope.Element,
+                1 => (TreeScope)3,
+                _ => TreeScope.Subtree,
+            },
+            TreeFilter =
+                options.View == SnapshotView.Control
+                    ? new PropertyCondition(properties.Element.IsControlElement, true)
+                    : TrueCondition.Default,
             // Keep full live references so refs from the snapshot remain actionable.
             AutomationElementMode = AutomationElementMode.Full,
         };
@@ -110,38 +121,47 @@ public sealed class SnapshotBuilder
         cacheRequest.Add(properties.Element.HasKeyboardFocus);
         cacheRequest.Add(properties.Element.IsOffscreen);
         cacheRequest.Add(properties.Element.BoundingRectangle);
-        cacheRequest.Add(properties.Element.ProcessId);
-        cacheRequest.Add(patterns.ValuePattern);
+        cacheRequest.Add(patterns.ValuePattern.AvailabilityProperty!);
         cacheRequest.Add(properties.Value.Value);
-        cacheRequest.Add(patterns.TogglePattern);
+        cacheRequest.Add(patterns.TogglePattern.AvailabilityProperty!);
         cacheRequest.Add(properties.Toggle.ToggleState);
-        cacheRequest.Add(patterns.ExpandCollapsePattern);
+        cacheRequest.Add(patterns.ExpandCollapsePattern.AvailabilityProperty!);
         cacheRequest.Add(properties.ExpandCollapse.ExpandCollapseState);
-        cacheRequest.Add(patterns.SelectionItemPattern);
+        cacheRequest.Add(patterns.SelectionItemPattern.AvailabilityProperty!);
         cacheRequest.Add(properties.SelectionItem.IsSelected);
-        cacheRequest.Add(patterns.SelectionPattern);
+        cacheRequest.Add(patterns.SelectionPattern.AvailabilityProperty!);
         return cacheRequest;
     }
 
     private static void AddToggleState(AutomationElement element, List<string> states)
     {
-        var toggle = element.Patterns.Toggle.PatternOrDefault;
-        if (toggle is null)
+        if (!IsPatternAvailable(element, element.Automation.PatternLibrary.TogglePattern))
         {
             return;
         }
 
-        states.Add(toggle.ToggleState.ValueOrDefault == ToggleState.On ? "checked" : "unchecked");
+        var property = element.Automation.PropertyLibrary.Toggle.ToggleState;
+        if (!TryGetPropertyValue(element, property, out ToggleState toggleState))
+        {
+            return;
+        }
+
+        states.Add(toggleState == ToggleState.On ? "checked" : "unchecked");
     }
 
     private static void AddExpandState(AutomationElement element, List<string> states)
     {
-        var expandState = element
-            .Patterns
-            .ExpandCollapse
-            .PatternOrDefault
-            ?.ExpandCollapseState
-            .ValueOrDefault;
+        if (!IsPatternAvailable(element, element.Automation.PatternLibrary.ExpandCollapsePattern))
+        {
+            return;
+        }
+
+        var property = element.Automation.PropertyLibrary.ExpandCollapse.ExpandCollapseState;
+        if (!TryGetPropertyValue(element, property, out ExpandCollapseState expandState))
+        {
+            return;
+        }
+
         if (expandState is ExpandCollapseState.Expanded or ExpandCollapseState.PartiallyExpanded)
         {
             states.Add("expanded");
@@ -154,8 +174,15 @@ public sealed class SnapshotBuilder
 
     private static void AddSelectionState(AutomationElement element, List<string> states)
     {
-        var selectionItem = element.Patterns.SelectionItem.PatternOrDefault;
-        if (selectionItem is null || !selectionItem.IsSelected.ValueOrDefault)
+        if (
+            !IsPatternAvailable(element, element.Automation.PatternLibrary.SelectionItemPattern)
+            || !TryGetPropertyValue(
+                element,
+                element.Automation.PropertyLibrary.SelectionItem.IsSelected,
+                out bool selected
+            )
+            || !selected
+        )
         {
             return;
         }
@@ -190,29 +217,28 @@ public sealed class SnapshotBuilder
     private static BoundingRect? ReadBounds(AutomationElement element) =>
         RectConversions.ToBoundingRect(element.Properties.BoundingRectangle.ValueOrDefault);
 
-    /// <summary>
-    /// Reads the selected item names live; selection elements are not part of the
-    /// bulk cache, so this must run outside the cache scope.
-    /// </summary>
-    private static string? ReadSelectionValueLive(AutomationElement element)
+    private static bool IsPatternAvailable(AutomationElement element, PatternId pattern)
+    {
+        var availability = pattern.AvailabilityProperty;
+        return availability is not null
+            && TryGetPropertyValue(element, availability, out bool available)
+            && available;
+    }
+
+    private static bool TryGetPropertyValue<T>(
+        AutomationElement element,
+        PropertyId property,
+        [MaybeNullWhen(false)] out T value
+    )
     {
         try
         {
-            var selected = element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault;
-            if (selected is null || selected.Length == 0)
-            {
-                return null;
-            }
-
-            var names = selected
-                .Select(item => item.Properties.Name.ValueOrDefault)
-                .Where(name => !string.IsNullOrEmpty(name));
-            var joined = string.Join(", ", names);
-            return joined.Length == 0 ? null : Truncate(joined, _maxValueLength);
+            return element.FrameworkAutomationElement.TryGetPropertyValue(property, out value);
         }
-        catch (COMException)
+        catch (Exception ex) when (ex is COMException or NotSupportedException)
         {
-            return null;
+            value = default;
+            return false;
         }
     }
 
@@ -221,27 +247,50 @@ public sealed class SnapshotBuilder
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
+    private static void PopulateValue(UiNode node, AutomationElement element)
+    {
+        if (IsPatternAvailable(element, element.Automation.PatternLibrary.ValuePattern))
+        {
+            if (
+                !TryGetPropertyValue(
+                    element,
+                    element.Automation.PropertyLibrary.Value.Value,
+                    out string? value
+                )
+            )
+            {
+                return;
+            }
+
+            node.Value = Truncate(value, _maxValueLength);
+            return;
+        }
+
+        if (!IsPatternAvailable(element, element.Automation.PatternLibrary.SelectionPattern))
+        {
+            return;
+        }
+
+        var selectedNames = node
+            .Children.Where(child => child.States.Contains("selected", StringComparer.Ordinal))
+            .Select(child => child.Name)
+            .Where(name => !string.IsNullOrEmpty(name));
+        node.Value = Truncate(string.Join(", ", selectedNames), _maxValueLength);
+    }
+
     /// <summary>
     /// Fetches the whole subtree (properties and pattern state) in one cross-process
     /// UIA call instead of round-tripping per node per property.
     /// </summary>
     private UiNode? BuildTreeCached(AutomationElement root)
     {
-        var cacheRequest = CreateCacheRequest(root.Automation);
+        var cacheRequest = CreateCacheRequest(root.Automation, _options);
         using (cacheRequest.Activate())
         {
             var cachedRoot =
                 root.FindFirst(TreeScope.Element, TrueCondition.Default)
                 ?? throw new NotSupportedException("Bulk-cached root fetch returned nothing.");
             return BuildNode(cachedRoot, 0, isRoot: true);
-        }
-    }
-
-    private void ApplySelectionFixups()
-    {
-        foreach (var (node, element) in _selectionFixups)
-        {
-            node.Value = ReadSelectionValueLive(element);
         }
     }
 
@@ -289,25 +338,6 @@ public sealed class SnapshotBuilder
         };
         PopulateValue(node, element);
         return node;
-    }
-
-    private void PopulateValue(UiNode node, AutomationElement element)
-    {
-        var valuePattern = element.Patterns.Value.PatternOrDefault;
-        if (valuePattern is not null)
-        {
-            node.Value = Truncate(valuePattern.Value.ValueOrDefault, _maxValueLength);
-            return;
-        }
-
-        // Combo boxes, lists, and trees often lack ValuePattern; surface their
-        // selected item names as the value once the cache scope has closed.
-        if (!element.Patterns.Selection.IsSupported)
-        {
-            return;
-        }
-
-        _selectionFixups.Add((node, element));
     }
 
     private List<UiNode> BuildChildren(AutomationElement element, int depth)

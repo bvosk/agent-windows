@@ -19,6 +19,10 @@ jobs:
       - name: Restore repository tools
         run: mise run setup:ci
 
+      - name: Test performance commit discovery
+        shell: pwsh
+        run: ./scripts/performance/Test-CommitMatrix.ps1
+
       - name: Full quality gate
         run: mise run check:full
 

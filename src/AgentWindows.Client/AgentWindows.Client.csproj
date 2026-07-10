@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <RootNamespace>AgentWindows.Cli</RootNamespace>
+        <AssemblyName>agent-windows</AssemblyName>
+        <Version>0.1.0</Version>
+        <PublishAot>true</PublishAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <StripSymbols>true</StripSymbols>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);NATIVE_CLIENT</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile
+            Include="../AgentWindows.Cli/**/*.cs"
+            Exclude="../AgentWindows.Cli/obj/**;../AgentWindows.Cli/bin/**;../AgentWindows.Cli/Daemon/DaemonHost.cs"
+            Link="%(RecursiveDir)%(Filename)%(Extension)"
+        />
+        <EmbeddedResource
+            Include="../../skill-data/**/*.md"
+            LogicalName="skill-data/%(RecursiveDir)%(Filename)%(Extension)"
+        />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.CommandLine" />
+        <ProjectReference Include="../AgentWindows.Core/AgentWindows.Core.csproj" />
+    </ItemGroup>
+</Project>

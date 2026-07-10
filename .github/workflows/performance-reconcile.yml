@@ -1,0 +1,43 @@
+name: Performance reconciliation
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find and dispatch missing commits
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
+          $contexts = @(@{ Name = 'main'; Shas = @(git rev-list --reverse --topo-order HEAD) })
+          $prs = gh pr list --state open --limit 100 --json number,baseRefOid,headRefOid | ConvertFrom-Json
+          foreach ($pr in $prs) {
+            git fetch origin "pull/$($pr.number)/head:refs/remotes/pull/$($pr.number)" --force
+            $contexts += @{ Name = "pr-$($pr.number)"; Shas = @(git rev-list --reverse --topo-order "$($pr.baseRefOid)..$($pr.headRefOid)") }
+          }
+          foreach ($context in $contexts) {
+            $missing = @($context.Shas | Where-Object {
+              git cat-file -e "refs/remotes/origin/perf-data:results/v1/$($context.Name)/$_.json" 2>$null
+              $LASTEXITCODE -ne 0
+            })
+            for ($offset = 0; $offset -lt $missing.Count; $offset += 50) {
+              $chunk = @($missing | Select-Object -Skip $offset -First 50)
+              if ($chunk.Count -eq 0) { continue }
+              gh workflow run performance.yml -f "shas=$($chunk -join ',')" -f "context=$($context.Name)"
+            }
+          }

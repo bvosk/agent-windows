@@ -124,6 +124,30 @@ public sealed class DaemonClientTests
     }
 
     [Fact]
+    public void MissingPipe_PrefersSiblingManagedDaemonForNativeClient()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"aw-native-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var clientPath = Path.Combine(directory, "agent-windows.exe");
+        var daemonPath = Path.Combine(directory, "agent-windows-daemon.exe");
+        File.WriteAllBytes(daemonPath, []);
+        try
+        {
+            var harness = new ClientHarness { PipeIsPresent = false, ProcessPath = clientPath };
+            harness.QueueConnection(new ScriptedConnection(Success("ready")));
+            using var client = harness.CreateClient();
+
+            client.Send(new StatusRequest()).Ok.ShouldBeTrue();
+
+            harness.StartInfos.ShouldHaveSingleItem().FileName.ShouldBe(daemonPath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void SpawnTimeout_FailsAfterRetryDeadline()
     {
         var harness = new ClientHarness { PipeIsPresent = false, StartedProcess = null };

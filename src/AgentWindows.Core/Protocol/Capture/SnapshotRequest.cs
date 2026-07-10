@@ -8,5 +8,7 @@ public sealed record SnapshotRequest : DaemonRequest
 
     public int? MaxDepth { get; init; }
 
+    public Snapshots.SnapshotView View { get; init; } = Snapshots.SnapshotView.Raw;
+
     public string? ScopeRef { get; init; }
 }

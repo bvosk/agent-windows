@@ -110,6 +110,33 @@ public sealed class OutputRendererTests
     }
 
     [Fact]
+    public void RenderPayload_Find_FormatsEveryMatch()
+    {
+        var payload = new FindPayload
+        {
+            Matches =
+            [
+                new UiNode
+                {
+                    Role = "button",
+                    Name = "Save",
+                    Ref = "e1",
+                },
+                new UiNode
+                {
+                    Role = "button",
+                    Name = "Save as",
+                    Ref = "e2",
+                },
+            ],
+        };
+
+        OutputRenderer
+            .RenderPayload(payload)
+            .ShouldBe("- button \"Save\" [@e1]\n- button \"Save as\" [@e2]\n");
+    }
+
+    [Fact]
     public void RenderPayload_Screenshot()
     {
         var payload = new ScreenshotPayload { Path = @"C:\shots\out.png" };

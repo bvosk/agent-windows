@@ -3,6 +3,7 @@
         <Project Path="src/AgentWindows.Core/AgentWindows.Core.csproj" />
         <Project Path="src/AgentWindows.Automation/AgentWindows.Automation.csproj" />
         <Project Path="src/AgentWindows.Cli/AgentWindows.Cli.csproj" />
+        <Project Path="src/AgentWindows.Client/AgentWindows.Client.csproj" />
         <Project Path="src/AgentWindows.Tool/AgentWindows.Tool.csproj" />
     </Folder>
     <Folder Name="/tests/">
@@ -11,5 +12,8 @@
         <Project Path="tests/AgentWindows.Architecture.Tests/AgentWindows.Architecture.Tests.csproj" />
         <Project Path="tests/AgentWindows.E2eTarget/AgentWindows.E2eTarget.csproj" />
         <Project Path="tests/AgentWindows.E2e.Tests/AgentWindows.E2e.Tests.csproj" />
+    </Folder>
+    <Folder Name="/benchmarks/">
+        <Project Path="benchmarks/AgentWindows.Performance/AgentWindows.Performance.csproj" />
     </Folder>
 </Solution>

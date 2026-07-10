@@ -5,6 +5,7 @@ GetWindowText
 GetWindowTextLength
 GetWindowThreadProcessId
 IsWindowVisible
+IsWindow
 OpenProcess
 OpenProcessToken
 QueryFullProcessImageName

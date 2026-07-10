@@ -1,5 +1,7 @@
 using System.CommandLine;
+using System.CommandLine.Parsing;
 using AgentWindows.Cli.Daemon;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Protocol.Capture;
 using AgentWindows.Core.Protocol.Interaction;
 using AgentWindows.Core.Protocol.Lifecycle;
@@ -46,6 +48,8 @@ public static class CommandTree
         root.Subcommands.Add(BuildLaunch(context));
         root.Subcommands.Add(BuildAttach(context));
         root.Subcommands.Add(BuildSnapshot(context));
+        root.Subcommands.Add(BuildFind(context));
+        root.Subcommands.Add(BuildActivate(context));
         root.Subcommands.Add(BuildClick(context));
         root.Subcommands.Add(BuildFill(context));
         root.Subcommands.Add(BuildPress(context));
@@ -127,7 +131,13 @@ public static class CommandTree
         {
             var session = context.GetSession(parseResult);
             using var client = new DaemonClient(session);
-            var runner = new ReplRunner(root, context, session, request => client.Send(request));
+            var runner = new ReplRunner(
+                root,
+                context,
+                session,
+                request => client.Send(request),
+                request => client.SendRaw(request)
+            );
             return runner.Run(Console.In, Console.Out);
         });
         return command;
@@ -241,6 +251,10 @@ public static class CommandTree
         {
             Description = "Restrict the snapshot to the subtree of a previous ref (e.g. '@e3').",
         };
+        var viewOption = new Option<string?>("--view")
+        {
+            Description = "UIA tree view: raw or control (-i defaults to control).",
+        };
         var command = new Command(
             "snapshot",
             "Capture the accessibility tree of the target window with element refs."
@@ -248,6 +262,7 @@ public static class CommandTree
         command.Options.Add(interactiveOption);
         command.Options.Add(depthOption);
         command.Options.Add(scopeOption);
+        command.Options.Add(viewOption);
         context.Attach(
             command,
             parseResult => new SnapshotRequest
@@ -255,18 +270,67 @@ public static class CommandTree
                 InteractiveOnly = parseResult.GetValue(interactiveOption),
                 MaxDepth = parseResult.GetValue(depthOption),
                 ScopeRef = parseResult.GetValue(scopeOption),
+                View = RequestBuilder.ParseSnapshotView(
+                    parseResult.GetValue(viewOption),
+                    parseResult.GetValue(interactiveOption)
+                ),
             }
         );
         return command;
     }
 
+    private static Command BuildFind(CommandContext context)
+    {
+        var selectors = new SelectorOptions();
+        var allOption = new Option<bool>("--all")
+        {
+            Description = "Return every match instead of the first match.",
+        };
+        var command = new Command("find", "Find elements with a provider-side UIA selector.");
+        selectors.AddTo(command);
+        command.Options.Add(allOption);
+        context.Attach(
+            command,
+            parseResult => new FindRequest
+            {
+                Selector = selectors.Read(parseResult) ?? new ElementSelector(),
+                All = parseResult.GetValue(allOption),
+            }
+        );
+        return command;
+    }
+
+    private static Command BuildActivate(CommandContext context)
+    {
+        var refArgument = OptionalRefArgument("Ref of the element to activate.");
+        var selectors = new SelectorOptions();
+        var timeoutOption = CreateTimeoutOption();
+        var command = new Command(
+            "activate",
+            "Activate an element through a semantic UIA pattern."
+        );
+        command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
+        command.Options.Add(timeoutOption);
+        context.Attach(
+            command,
+            parseResult => new ActivateRequest
+            {
+                Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
+                TimeoutMs = parseResult.GetValue(timeoutOption),
+            }
+        );
+        return command;
+    }
+
+    private static Argument<string?> OptionalRefArgument(string description) =>
+        new("ref") { Description = description, Arity = ArgumentArity.ZeroOrOne };
+
     private static Command BuildClick(CommandContext context)
     {
-        var refArgument = new Argument<string?>("ref")
-        {
-            Description = "Element ref from the latest snapshot, e.g. '@e5'.",
-            Arity = ArgumentArity.ZeroOrOne,
-        };
+        var refArgument = OptionalRefArgument("Element ref from the latest snapshot, e.g. '@e5'.");
+        var selectors = new SelectorOptions();
         var atOption = new Option<string?>("--at")
         {
             Description = "Click at screen coordinates 'x,y' instead of an element.",
@@ -277,6 +341,7 @@ public static class CommandTree
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("click", "Click an element or a screen coordinate.");
         command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
         command.Options.Add(atOption);
         command.Options.Add(rightOption);
         command.Options.Add(middleOption);
@@ -287,6 +352,7 @@ public static class CommandTree
             parseResult =>
                 RequestBuilder.BuildClick(
                     parseResult.GetValue(refArgument),
+                    selectors.Read(parseResult),
                     parseResult.GetValue(atOption),
                     parseResult.GetValue(rightOption),
                     parseResult.GetValue(middleOption),
@@ -299,22 +365,35 @@ public static class CommandTree
 
     private static Command BuildFill(CommandContext context)
     {
-        var refArgument = new Argument<string>("ref")
+        var refArgument = OptionalRefArgument("Element ref from the latest snapshot, e.g. '@e7'.");
+        var textArgument = new Argument<string?>("text")
         {
-            Description = "Element ref from the latest snapshot, e.g. '@e7'.",
+            Description = "Text to set when using a positional ref.",
+            Arity = ArgumentArity.ZeroOrOne,
         };
-        var textArgument = new Argument<string>("text") { Description = "Text to set." };
+        var valueOption = new Option<string?>("--value")
+        {
+            Description = "Text to set when targeting with selector options.",
+        };
+        var selectors = new SelectorOptions();
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("fill", "Replace the value of an editable element.");
         command.Arguments.Add(refArgument);
         command.Arguments.Add(textArgument);
+        command.Options.Add(valueOption);
+        selectors.AddTo(command);
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
             parseResult => new FillRequest
             {
-                Ref = GetRequiredValue(parseResult, refArgument),
-                Text = GetRequiredValue(parseResult, textArgument),
+                Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
+                Text = RequestBuilder.RequireValue(
+                    parseResult.GetValue(textArgument),
+                    parseResult.GetValue(valueOption),
+                    "value"
+                ),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
         );
@@ -338,25 +417,35 @@ public static class CommandTree
 
     private static Command BuildSelect(CommandContext context)
     {
-        var refArgument = new Argument<string>("ref")
+        var refArgument = OptionalRefArgument("Ref of a combo box, list, or tab control.");
+        var itemArgument = new Argument<string?>("item")
         {
-            Description = "Ref of a combo box, list, or tab control.",
+            Description = "Name of the item when using a positional ref.",
+            Arity = ArgumentArity.ZeroOrOne,
         };
-        var itemArgument = new Argument<string>("item")
+        var itemOption = new Option<string?>("--item")
         {
-            Description = "Name of the item to select.",
+            Description = "Name of the item when targeting with selector options.",
         };
+        var selectors = new SelectorOptions();
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("select", "Select an item in a combo box, list, or tab control.");
         command.Arguments.Add(refArgument);
         command.Arguments.Add(itemArgument);
+        command.Options.Add(itemOption);
+        selectors.AddTo(command);
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
             parseResult => new SelectRequest
             {
-                Ref = GetRequiredValue(parseResult, refArgument),
-                Item = GetRequiredValue(parseResult, itemArgument),
+                Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
+                Item = RequestBuilder.RequireValue(
+                    parseResult.GetValue(itemArgument),
+                    parseResult.GetValue(itemOption),
+                    "item"
+                ),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
         );
@@ -365,10 +454,10 @@ public static class CommandTree
 
     private static Command BuildExpand(CommandContext context)
     {
-        var refArgument = new Argument<string>("ref")
-        {
-            Description = "Ref of an expandable element (menu, tree item, combo box).",
-        };
+        var refArgument = OptionalRefArgument(
+            "Ref of an expandable element (menu, tree item, combo box)."
+        );
+        var selectors = new SelectorOptions();
         var collapseOption = new Option<bool>("--collapse")
         {
             Description = "Collapse instead of expand.",
@@ -376,13 +465,15 @@ public static class CommandTree
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("expand", "Expand (or collapse) an element.");
         command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
         command.Options.Add(collapseOption);
         command.Options.Add(timeoutOption);
         context.Attach(
             command,
             parseResult => new ExpandRequest
             {
-                Ref = GetRequiredValue(parseResult, refArgument),
+                Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
                 Collapse = parseResult.GetValue(collapseOption),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
@@ -392,10 +483,8 @@ public static class CommandTree
 
     private static Command BuildToggle(CommandContext context)
     {
-        var refArgument = new Argument<string>("ref")
-        {
-            Description = "Ref of a checkbox or toggle element.",
-        };
+        var refArgument = OptionalRefArgument("Ref of a checkbox or toggle element.");
+        var selectors = new SelectorOptions();
         var onOption = new Option<bool>("--on") { Description = "Ensure the element is checked." };
         var offOption = new Option<bool>("--off")
         {
@@ -404,6 +493,7 @@ public static class CommandTree
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("toggle", "Toggle a checkbox or toggle element.");
         command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
         command.Options.Add(onOption);
         command.Options.Add(offOption);
         command.Options.Add(timeoutOption);
@@ -411,7 +501,8 @@ public static class CommandTree
             command,
             parseResult =>
                 RequestBuilder.BuildToggle(
-                    GetRequiredValue(parseResult, refArgument),
+                    parseResult.GetValue(refArgument),
+                    selectors.Read(parseResult),
                     parseResult.GetValue(onOption),
                     parseResult.GetValue(offOption),
                     parseResult.GetValue(timeoutOption)
@@ -431,6 +522,7 @@ public static class CommandTree
             Description = "Ref of the element to scroll; omitted scrolls the target window.",
             Arity = ArgumentArity.ZeroOrOne,
         };
+        var selectors = new SelectorOptions();
         var amountOption = new Option<double>("--amount")
         {
             Description = "Scroll steps (wheel ticks or small increments).",
@@ -440,6 +532,7 @@ public static class CommandTree
         var command = new Command("scroll", "Scroll an element or the target window.");
         command.Arguments.Add(directionArgument);
         command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
         command.Options.Add(amountOption);
         command.Options.Add(timeoutOption);
         context.Attach(
@@ -447,6 +540,7 @@ public static class CommandTree
             parseResult => new ScrollRequest
             {
                 Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
                 Direction = RequestBuilder.ParseDirection(
                     GetRequiredValue(parseResult, directionArgument)
                 ),
@@ -468,6 +562,7 @@ public static class CommandTree
         {
             Description = "Wait for an element whose name contains this text.",
         };
+        var selectors = new SelectorOptions();
         var goneOption = new Option<bool>("--gone")
         {
             Description = "Wait for the element/text to disappear instead.",
@@ -475,6 +570,7 @@ public static class CommandTree
         var timeoutOption = CreateTimeoutOption();
         var command = new Command("wait", "Wait until an element or text appears (or disappears).");
         command.Arguments.Add(refArgument);
+        selectors.AddTo(command);
         command.Options.Add(textOption);
         command.Options.Add(goneOption);
         command.Options.Add(timeoutOption);
@@ -483,6 +579,7 @@ public static class CommandTree
             parseResult => new WaitRequest
             {
                 Ref = parseResult.GetValue(refArgument),
+                Selector = selectors.Read(parseResult),
                 Text = parseResult.GetValue(textOption),
                 Gone = parseResult.GetValue(goneOption),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
@@ -580,7 +677,19 @@ public static class CommandTree
         {
             Hidden = true,
         };
+#if NATIVE_CLIENT
+        run.SetAction(
+            (Func<ParseResult, int>)(
+                _ =>
+                    throw new AutomationException(
+                        ErrorCodes.BadRequest,
+                        "The NativeAOT client cannot run the managed automation daemon in-process."
+                    )
+            )
+        );
+#else
         run.SetAction(parseResult => DaemonHost.Run(context.GetSession(parseResult)));
+#endif
         daemon.Subcommands.Add(run);
 
         var allOption = new Option<bool>("--all") { Description = "Stop every daemon session." };
@@ -611,5 +720,57 @@ public static class CommandTree
         daemon.Subcommands.Add(stop);
 
         return daemon;
+    }
+
+    private sealed class SelectorOptions
+    {
+        private readonly Option<string?> _automationId = new("--automation-id")
+        {
+            Description = "Match AutomationId (case-insensitive).",
+        };
+        private readonly Option<string?> _name = new("--name")
+        {
+            Description = "Match accessible name exactly (case-insensitive).",
+        };
+        private readonly Option<string?> _nameContains = new("--name-contains")
+        {
+            Description = "Match accessible name by substring (case-insensitive).",
+        };
+        private readonly Option<string?> _role = new("--role")
+        {
+            Description = "Match an accessibility role such as button or edit.",
+        };
+        private readonly Option<string?> _scope = new("--scope")
+        {
+            Description = "Restrict the selector to a current ref's subtree.",
+        };
+        private readonly Option<bool> _requireUnique = new("--require-unique")
+        {
+            Description = "Fail unless exactly one element matches.",
+        };
+
+        public void AddTo(Command command)
+        {
+            command.Options.Add(_automationId);
+            command.Options.Add(_name);
+            command.Options.Add(_nameContains);
+            command.Options.Add(_role);
+            command.Options.Add(_scope);
+            command.Options.Add(_requireUnique);
+        }
+
+        public ElementSelector? Read(ParseResult parseResult)
+        {
+            var selector = new ElementSelector
+            {
+                AutomationId = parseResult.GetValue(_automationId),
+                Name = parseResult.GetValue(_name),
+                NameContains = parseResult.GetValue(_nameContains),
+                Role = parseResult.GetValue(_role),
+                ScopeRef = parseResult.GetValue(_scope),
+                RequireUnique = parseResult.GetValue(_requireUnique),
+            };
+            return selector.IsEmpty ? null : selector;
+        }
     }
 }

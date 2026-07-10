@@ -1,3 +1,4 @@
+using AgentWindows.Core.Protocol.Capture;
 using AgentWindows.Core.Session;
 using AgentWindows.E2E.Tests.Infrastructure;
 using Shouldly;
@@ -76,6 +77,37 @@ public sealed class CoreLoopTests(TargetAppFixture fixture) : IClassFixture<Targ
 
         (
             await _fixture.Cli.RunAsync("wait", "--text", "Ready", "--gone", "--timeout", "5000")
+        ).ShouldSucceed();
+    }
+
+    [E2EFact]
+    public async Task Find_AppendsARef_AndActivateUsesSemanticPattern()
+    {
+        var snapshot = await _fixture.SnapshotAsync("-i");
+        var inputRef = snapshot.Root.RequireByAutomationId("InputBox").RequireRef();
+
+        var found = (
+            await _fixture.Cli.RunAsync(
+                "find",
+                "--automation-id",
+                "SubmitButton",
+                "--require-unique"
+            )
+        ).ShouldSucceedWith<FindPayload>();
+        found.Matches.ShouldHaveSingleItem().Ref.ShouldNotBeNull();
+
+        (await _fixture.Cli.RunAsync("fill", $"@{inputRef}", "semantic")).ShouldSucceed();
+        (
+            await _fixture.Cli.RunAsync("activate", "--automation-id", "SubmitButton")
+        ).ShouldSucceed();
+        (
+            await _fixture.Cli.RunAsync(
+                "wait",
+                "--text",
+                "Submitted: semantic",
+                "--timeout",
+                "5000"
+            )
         ).ShouldSucceed();
     }
 

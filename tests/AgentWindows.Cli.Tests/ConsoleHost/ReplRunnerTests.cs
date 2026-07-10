@@ -151,6 +151,106 @@ public sealed class ReplRunnerTests
         lines.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void RawSender_ResponseIsPassedThroughWithoutReserialization()
+    {
+        var root = CommandTree.Build(out var context);
+        var raw = "{\"ok\":true,\"payload\":{\"type\":\"ack\",\"detail\":\"raw\"}}";
+        var runner = new ReplRunner(
+            root,
+            context,
+            "default",
+            _ => throw new InvalidOperationException("The typed sender must not be used."),
+            _ => raw
+        );
+        using var reader = new StringReader("status\n");
+        using var writer = new StringWriter();
+
+        runner.Run(reader, writer).ShouldBe(0);
+        writer.ToString().Trim().ShouldBe(raw);
+    }
+
+    [Fact]
+    public void RawSender_AcceptsRawJsonRequests()
+    {
+        var root = CommandTree.Build(out var context);
+        DaemonRequest? sent = null;
+        var runner = new ReplRunner(
+            root,
+            context,
+            "default",
+            _ => throw new InvalidOperationException(),
+            request =>
+            {
+                sent = request;
+                return "{\"ok\":true}";
+            }
+        );
+        using var reader = new StringReader("{\"cmd\":\"status\"}\n");
+        using var writer = new StringWriter();
+
+        runner.Run(reader, writer).ShouldBe(0);
+        sent.ShouldBeOfType<StatusRequest>();
+    }
+
+    [Fact]
+    public void RawSender_FailureStopsTheSession()
+    {
+        var root = CommandTree.Build(out var context);
+        var sent = 0;
+        var runner = new ReplRunner(
+            root,
+            context,
+            "default",
+            _ => throw new InvalidOperationException("The typed sender must not be used."),
+            _ =>
+            {
+                sent++;
+                return "{\"ok\":false,\"errorCode\":\"timeout\",\"message\":\"slow\"}";
+            }
+        );
+        using var reader = new StringReader("status\nstatus\n");
+        using var writer = new StringWriter();
+
+        runner.Run(reader, writer).ShouldBe(1);
+        sent.ShouldBe(1);
+    }
+
+    [Fact]
+    public void RawSender_ResponseWithoutOkIsAFailure()
+    {
+        var root = CommandTree.Build(out var context);
+        var runner = new ReplRunner(
+            root,
+            context,
+            "default",
+            _ => throw new InvalidOperationException(),
+            _ => "{}"
+        );
+        using var reader = new StringReader("status\n");
+        using var writer = new StringWriter();
+
+        runner.Run(reader, writer).ShouldBe(1);
+    }
+
+    [Fact]
+    public void RawSender_StillSerializesLocalValidationFailures()
+    {
+        var root = CommandTree.Build(out var context);
+        var runner = new ReplRunner(
+            root,
+            context,
+            "default",
+            _ => throw new InvalidOperationException(),
+            _ => throw new InvalidOperationException("Invalid input must not be sent.")
+        );
+        using var reader = new StringReader("frobnicate\n");
+        using var writer = new StringWriter();
+
+        runner.Run(reader, writer).ShouldBe(1);
+        writer.ToString().ShouldContain(ErrorCodes.BadRequest);
+    }
+
     private (int ExitCode, IReadOnlyList<string> Lines) Run(string input)
     {
         using var reader = new StringReader(input);

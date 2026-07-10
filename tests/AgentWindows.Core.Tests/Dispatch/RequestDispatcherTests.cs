@@ -1,4 +1,5 @@
 using AgentWindows.Core.Dispatch;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
 using AgentWindows.Core.Protocol.Capture;
 using AgentWindows.Core.Protocol.Interaction;
@@ -93,6 +94,44 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
+    public void Click_WithSelector_RoutesDirectlyToSession()
+    {
+        var response = _dispatcher.Dispatch(
+            new ClickRequest { Selector = new ElementSelector { Name = "Save" } }
+        );
+
+        response.Ok.ShouldBeTrue();
+        _session.Calls.ShouldBe(["click ref= x= y= button=Left double=False timeout=10000"]);
+    }
+
+    [Theory]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, false, true, true)]
+    [InlineData(false, false, true, false)]
+    [InlineData(false, false, false, true)]
+    public void Click_WithConflictingOrPartialTarget_FailsWithBadRequest(
+        bool includeRef,
+        bool includeSelector,
+        bool includeX,
+        bool includeY
+    )
+    {
+        var response = _dispatcher.Dispatch(
+            new ClickRequest
+            {
+                Ref = includeRef ? "e1" : null,
+                Selector = includeSelector ? new ElementSelector { Role = "button" } : null,
+                X = includeX ? 10 : null,
+                Y = includeY ? 20 : null,
+            }
+        );
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Click_WithoutRefOrCoordinates_FailsWithBadRequest()
     {
         var response = _dispatcher.Dispatch(new ClickRequest());
@@ -119,7 +158,7 @@ public sealed class RequestDispatcherTests : IDisposable
         var response = _dispatcher.Dispatch(new FillRequest { Ref = "@e7", Text = "hello" });
 
         response.Ok.ShouldBeTrue();
-        _session.Calls.ShouldBe(["fill ref=e7 text=hello timeout=10000"]);
+        _session.Calls.ShouldBe(["fill target=e7 text=hello timeout=10000"]);
     }
 
     [Fact]
@@ -156,7 +195,7 @@ public sealed class RequestDispatcherTests : IDisposable
         var response = _dispatcher.Dispatch(new WaitRequest { Text = "Saved", Gone = true });
 
         response.Ok.ShouldBeTrue();
-        _session.Calls.ShouldBe(["wait ref= text=Saved gone=True timeout=10000"]);
+        _session.Calls.ShouldBe(["wait target=none text=Saved gone=True timeout=10000"]);
     }
 
     [Fact]
@@ -342,11 +381,11 @@ public sealed class RequestDispatcherTests : IDisposable
         _dispatcher.Dispatch(new CloseRequest { Force = true });
 
         _session.Calls.ShouldBe([
-            "select ref=e1 item=Red timeout=10000",
-            "expand ref=e2 collapse=True timeout=10000",
-            "expand ref=e2 collapse=False timeout=10000",
-            "toggle ref=e3 state=True timeout=10000",
-            "scroll ref=e4 direction=Down amount=1 timeout=10000",
+            "select target=e1 item=Red timeout=10000",
+            "expand target=e2 collapse=True timeout=10000",
+            "expand target=e2 collapse=False timeout=10000",
+            "toggle target=e3 state=True timeout=10000",
+            "scroll target=e4 direction=Down amount=1 timeout=10000",
             @"screenshot ref= path=C:\shots\shot.png",
             "window action=Maximize x= y= width= height=",
             "window action=Move x=10 y=20 width= height=",
@@ -361,7 +400,79 @@ public sealed class RequestDispatcherTests : IDisposable
         var response = _dispatcher.Dispatch(new WaitRequest { Ref = "@e8" });
 
         response.Ok.ShouldBeTrue();
-        _session.Calls.ShouldBe(["wait ref=e8 text= gone=False timeout=10000"]);
+        _session.Calls.ShouldBe(["wait target=e8 text= gone=False timeout=10000"]);
+    }
+
+    [Fact]
+    public void Find_NormalizesScopeAndReturnsMatches()
+    {
+        var response = _dispatcher.Dispatch(
+            new FindRequest
+            {
+                Selector = new ElementSelector
+                {
+                    AutomationId = "SubmitButton",
+                    ScopeRef = "@e3",
+                    RequireUnique = true,
+                },
+            }
+        );
+
+        response.Ok.ShouldBeTrue();
+        response.Payload.ShouldBeOfType<FindPayload>().Matches.ShouldHaveSingleItem();
+        _session.Calls.ShouldBe([
+            "find selector=id=SubmitButton,name=,contains=,role=,scope=e3,unique=True all=False",
+        ]);
+    }
+
+    [Fact]
+    public void Activate_WithSelectorRoutesDirectlyToSession()
+    {
+        var response = _dispatcher.Dispatch(
+            new ActivateRequest { Selector = new ElementSelector { AutomationId = "SubmitButton" } }
+        );
+
+        response.Ok.ShouldBeTrue();
+        _session.Calls.ShouldBe([
+            "activate target=id=SubmitButton,name=,contains=,role=,scope=,unique=False timeout=10000",
+        ]);
+    }
+
+    [Fact]
+    public void Activate_WithoutTargetFailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new ActivateRequest());
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Action_WithRefAndSelectorFailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(
+            new FillRequest
+            {
+                Ref = "e1",
+                Selector = new ElementSelector { AutomationId = "InputBox" },
+                Text = "hello",
+            }
+        );
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void EmptySelectorFailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new FindRequest { Selector = new ElementSelector() });
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        _session.Calls.ShouldBeEmpty();
     }
 
     private sealed record UnknownRequest : DaemonRequest;

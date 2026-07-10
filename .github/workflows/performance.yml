@@ -1,0 +1,304 @@
+name: Performance
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      shas:
+        description: "Comma-separated commit SHAs to benchmark"
+        required: false
+      context:
+        description: "Result context (main or pr-N)"
+        required: false
+        default: main
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      has-commits: ${{ steps.matrix.outputs.has_commits }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch existing performance data
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/perf-data" | Out-Null
+          git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            git worktree add "$env:RUNNER_TEMP/perf-data" refs/remotes/origin/perf-data
+          }
+
+      - name: Discover every eligible commit
+        id: matrix
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          INPUT_SHAS: ${{ inputs.shas }}
+          INPUT_CONTEXT: ${{ inputs.context }}
+        run: |
+          if ($env:EVENT_NAME -eq 'push' -and $env:REF_NAME -ne $env:DEFAULT_BRANCH) {
+            "has_commits=false" >> $env:GITHUB_OUTPUT
+            "matrix={\"include\":[]}" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $context = if ($env:EVENT_NAME -eq 'pull_request') { "pr-$env:PR_NUMBER" } elseif ($env:EVENT_NAME -eq 'workflow_dispatch') { $env:INPUT_CONTEXT } else { 'main' }
+          $json = & ./scripts/performance/Get-CommitMatrix.ps1 `
+            -EventName $env:EVENT_NAME -Before $env:BEFORE -After $env:AFTER `
+            -BaseSha $env:PR_BASE -HeadSha $env:PR_HEAD -ExplicitShas $env:INPUT_SHAS `
+            -Context $context -DataRoot "$env:RUNNER_TEMP/perf-data"
+          $result = $json | ConvertFrom-Json
+          $matrix = @{ include = @($result.include) } | ConvertTo-Json -Depth 5 -Compress
+          "has_commits=$($result.include.Count -gt 0)".ToLowerInvariant() >> $env:GITHUB_OUTPUT
+          "matrix=$matrix" >> $env:GITHUB_OUTPUT
+          if ($result.overflow.Count -gt 0) {
+            "Dispatching $($result.overflow.Count) overflow commits in additional runs." >> $env:GITHUB_STEP_SUMMARY
+            for ($offset = 0; $offset -lt $result.overflow.Count; $offset += 256) {
+              $chunk = @($result.overflow | Select-Object -Skip $offset -First 256)
+              gh workflow run performance.yml `
+                -f "shas=$($chunk -join ',')" -f "context=$context"
+            }
+          }
+
+  benchmark:
+    needs: discover
+    if: needs.discover.outputs.has-commits == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Initialize immutable result artifact
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force performance-output | Out-Null
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          path: candidate
+          fetch-depth: 1
+
+      - uses: actions/checkout@v4
+        with:
+          ref: 850de360d6e36dd7d3001bc500a9cbcce44e97ac
+          path: reference
+          fetch-depth: 1
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: candidate/global.json
+
+      - name: Restore fixed reference build
+        id: reference-cache
+        uses: actions/cache@v4
+        with:
+          path: reference/src/AgentWindows.Cli/bin/Release
+          key: baseline-850de360-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('reference/global.json') }}
+
+      - name: Build candidate and reference
+        shell: pwsh
+        run: |
+          dotnet build candidate/AgentWindows.slnx -c Release
+          dotnet publish candidate/src/AgentWindows.Client/AgentWindows.Client.csproj -c Release -r win-x64 -o candidate/artifacts/native-client
+          dotnet publish candidate/src/AgentWindows.Cli/AgentWindows.Cli.csproj -c Release -o candidate/artifacts/managed-daemon
+          Get-ChildItem candidate/artifacts/managed-daemon | Where-Object Name -ne 'agent-windows.exe' | Copy-Item -Destination candidate/artifacts/native-client -Recurse -Force
+          Copy-Item candidate/artifacts/managed-daemon/agent-windows.exe candidate/artifacts/native-client/agent-windows-daemon.exe
+          if ('${{ steps.reference-cache.outputs.cache-hit }}' -ne 'true') {
+            dotnet build reference/src/AgentWindows.Cli/AgentWindows.Cli.csproj -c Release
+          }
+
+      - name: Run paired ABBA benchmark
+        shell: pwsh
+        env:
+          CANDIDATE_SHA: ${{ matrix.sha }}
+          RESULT_CONTEXT: ${{ matrix.context }}
+        run: |
+          $candidate = Resolve-Path candidate/artifacts/native-client/agent-windows.exe
+          $reference = Resolve-Path reference/src/AgentWindows.Cli/bin/Release/net10.0-windows/agent-windows.exe
+          $target = Resolve-Path candidate/tests/AgentWindows.E2eTarget/bin/Release/net10.0-windows/AgentWindows.E2eTarget.exe
+          $succeeded = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            Remove-Item performance-output/* -Recurse -Force -ErrorAction SilentlyContinue
+            dotnet run --project candidate/benchmarks/AgentWindows.Performance -c Release --no-build -- `
+              --candidate $candidate --reference $reference --target $target `
+              --candidate-sha $env:CANDIDATE_SHA `
+              --reference-sha 850de360d6e36dd7d3001bc500a9cbcce44e97ac `
+              --context $env:RESULT_CONTEXT --suite-version v1 --output performance-output
+            if ($LASTEXITCODE -eq 0 -and (Test-Path performance-output/run.json)) {
+              $succeeded = $true
+              break
+            }
+          }
+          if (-not $succeeded) {
+            @{
+              schemaVersion = 1
+              suiteVersion = 'v1'
+              context = $env:RESULT_CONTEXT
+              candidateSha = $env:CANDIDATE_SHA
+              referenceSha = '850de360d6e36dd7d3001bc500a9cbcce44e97ac'
+              timestamp = [DateTimeOffset]::UtcNow
+              status = 'failed'
+              retries = 3
+              terminal = $true
+            } | ConvertTo-Json | Set-Content performance-output/failure.json
+          }
+          if (Test-Path performance-output/summary.md) {
+            Get-Content performance-output/summary.md >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-${{ matrix.context }}-${{ matrix.sha }}
+          path: performance-output
+          if-no-files-found: error
+
+  collect:
+    needs: [discover, benchmark]
+    if: always() && needs.discover.outputs.has-commits == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: performance-data-publisher
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: publisher
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: performance-*
+          path: collected
+
+      - name: Merge immutable per-commit results
+        shell: pwsh
+        run: |
+          Copy-Item publisher/scripts/performance/Build-PerformanceSite.ps1 "$env:RUNNER_TEMP/Build-PerformanceSite.ps1"
+          git -C publisher fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            git -C publisher switch --force-create perf-data refs/remotes/origin/perf-data
+          } else {
+            git -C publisher switch --orphan perf-data
+            git -C publisher rm -r --ignore-unmatch .
+          }
+          Get-ChildItem collected -Recurse -Filter run.json | ForEach-Object {
+            $run = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $destination = "publisher/results/$($run.suiteVersion)/$($run.context)/$($run.candidateSha).json"
+            New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
+            $replace = -not (Test-Path $destination)
+            if (-not $replace) {
+              $existing = Get-Content $destination -Raw | ConvertFrom-Json
+              $replace = $existing.status -eq 'failed'
+            }
+            if ($replace) { Copy-Item $_.FullName $destination -Force }
+          }
+          Get-ChildItem collected -Recurse -Filter failure.json | ForEach-Object {
+            $run = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $destination = "publisher/results/$($run.suiteVersion)/$($run.context)/$($run.candidateSha).json"
+            if (-not (Test-Path $destination)) {
+              New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
+              Copy-Item $_.FullName $destination
+            }
+          }
+          & "$env:RUNNER_TEMP/Build-PerformanceSite.ps1" -DataRoot publisher -OutputRoot publisher/performance
+          git -C publisher config user.name github-actions[bot]
+          git -C publisher config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C publisher add results performance
+          git -C publisher commit -m "Record performance results for ${{ github.sha }}" 2>$null
+          if ($LASTEXITCODE -ne 0) { exit 0 }
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            git -C publisher pull --rebase origin perf-data 2>$null
+            git -C publisher push --set-upstream origin perf-data
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Start-Sleep -Seconds ($attempt * 2)
+          }
+          throw 'Could not publish performance data after five retries.'
+
+  pr-report:
+    needs: [discover, benchmark]
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: performance-pr-${{ github.event.pull_request.number }}-*
+          path: collected
+
+      - name: Publish advisory PR comparison
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          $runs = @{}
+          $shas = @(git rev-list --reverse --topo-order "$env:BASE_SHA..$env:HEAD_SHA")
+          git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            foreach ($sha in $shas) {
+              $json = git show "refs/remotes/origin/perf-data:results/v1/pr-$env:PR_NUMBER/$sha.json" 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                $run = $json | ConvertFrom-Json
+                if ($run.status -eq 'failed') {
+                  $runs[$sha] = @{ Score = $null; Warnings = 'terminal failure' }
+                } else {
+                  $scores = @($run.benchmarks | Where-Object score | ForEach-Object { [double]$_.score })
+                  $overall = if ($scores.Count) { [Math]::Exp(($scores | ForEach-Object { [Math]::Log($_) } | Measure-Object -Average).Average) } else { $null }
+                  $warnings = @($run.benchmarks | ForEach-Object advisories | Where-Object { $_ }) -join ', '
+                  $runs[$sha] = @{ Score = $overall; Warnings = $warnings }
+                }
+              }
+            }
+          }
+          Get-ChildItem collected -Recurse -Filter run.json | ForEach-Object {
+            $run = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $scores = @($run.benchmarks | Where-Object score | ForEach-Object { [double]$_.score })
+            $overall = if ($scores.Count) { [Math]::Exp(($scores | ForEach-Object { [Math]::Log($_) } | Measure-Object -Average).Average) } else { $null }
+            $warnings = @($run.benchmarks | ForEach-Object advisories | Where-Object { $_ }) -join ', '
+            $runs[$run.candidateSha] = @{ Score = $overall; Warnings = $warnings }
+          }
+          Get-ChildItem collected -Recurse -Filter failure.json | ForEach-Object {
+            $run = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            $runs[$run.candidateSha] = @{ Score = $null; Warnings = 'terminal failure' }
+          }
+          $lines = @('## Performance history', '', 'Advisory only. Baseline = 100; lower is better.', '', '| Commit | Baseline score | Previous commit | Advisory |', '| --- | ---: | ---: | --- |')
+          $previous = $null
+          foreach ($sha in $shas) {
+            $result = $runs[$sha]
+            if ($null -eq $result -or $null -eq $result.Score) {
+              $status = if ($result) { $result.Warnings } else { 'missing; reconciliation scheduled' }
+              $lines += "| ``$($sha.Substring(0,8))`` | — | — | $status |"
+              continue
+            }
+            $delta = if ($null -eq $previous) { '—' } else { '{0:+0.0;-0.0;0.0}' -f ($result.Score - $previous) }
+            $advisory = if ($result.Warnings) { $result.Warnings } else { '—' }
+            $lines += "| ``$($sha.Substring(0,8))`` | $($result.Score.ToString('0.0')) | $delta | $advisory |"
+            $previous = $result.Score
+          }
+          $lines += @('', "Merge base: ``$($env:BASE_SHA.Substring(0,8))``. [Dashboard](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/performance/pr-$env:PR_NUMBER/)")
+          $lines | Set-Content pr-performance.md
+          gh pr comment $env:PR_NUMBER --edit-last --create-if-none --body-file pr-performance.md

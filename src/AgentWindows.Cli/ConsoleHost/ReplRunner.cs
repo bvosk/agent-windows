@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
+using System.Text.Json;
 using AgentWindows.Core.Protocol.Transport;
 using AgentWindows.Core.Session;
 
@@ -15,7 +16,8 @@ public sealed class ReplRunner(
     RootCommand root,
     CommandContext context,
     string session,
-    Func<DaemonRequest, DaemonResponse> send
+    Func<DaemonRequest, DaemonResponse> send,
+    Func<DaemonRequest, string>? sendRaw = null
 )
 {
     private static readonly ParserConfiguration _parserConfiguration =
@@ -25,6 +27,7 @@ public sealed class ReplRunner(
     private readonly CommandContext _context = context;
     private readonly string _session = session;
     private readonly Func<DaemonRequest, DaemonResponse> _send = send;
+    private readonly Func<DaemonRequest, string>? _sendRaw = sendRaw;
 
     public int Run(TextReader input, TextWriter output)
     {
@@ -43,10 +46,10 @@ public sealed class ReplRunner(
                 return 0;
             }
 
-            var response = ExecuteLine(line);
-            var exitCode = OutputRenderer.Render(response, json: true, output, TextWriter.Null);
+            var responseLine = ExecuteLineRaw(line);
+            output.WriteLine(responseLine);
             output.Flush();
-            if (exitCode != 0)
+            if (!IsSuccess(responseLine))
             {
                 return 1;
             }
@@ -62,6 +65,12 @@ public sealed class ReplRunner(
             "Unparseable JSON request. Expected e.g. {\"cmd\":\"click\",\"ref\":\"e5\"}."
         );
 
+    private static bool IsSuccess(string responseLine)
+    {
+        using var document = JsonDocument.Parse(responseLine);
+        return document.RootElement.TryGetProperty("ok", out var ok) && ok.GetBoolean();
+    }
+
     private DaemonResponse ExecuteLine(string line)
     {
         try
@@ -72,6 +81,26 @@ public sealed class ReplRunner(
         catch (AutomationException ex)
         {
             return DaemonResponse.Failure(ex.Code, ex.Message);
+        }
+    }
+
+    private string ExecuteLineRaw(string line)
+    {
+        if (_sendRaw is null)
+        {
+            return ProtocolSerializer.SerializeResponse(ExecuteLine(line));
+        }
+
+        try
+        {
+            var request = line.StartsWith('{') ? ParseJsonLine(line) : ParseCliLine(line);
+            return _sendRaw(request);
+        }
+        catch (AutomationException ex)
+        {
+            return ProtocolSerializer.SerializeResponse(
+                DaemonResponse.Failure(ex.Code, ex.Message)
+            );
         }
     }
 

@@ -1,0 +1,6 @@
+{
+  "suiteVersion": "v1",
+  "baselineSha": "850de360d6e36dd7d3001bc500a9cbcce44e97ac",
+  "warmups": 5,
+  "samples": 30
+}

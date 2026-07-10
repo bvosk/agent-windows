@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
 using Windows.Win32;
+using Windows.Win32.Foundation;
 using Windows.Win32.Security;
 using Windows.Win32.System.Threading;
 
@@ -18,6 +19,9 @@ public static partial class ProcessInterop
         using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
+
+    public static bool IsWindow(long windowHandle) =>
+        PInvoke.IsWindow(new HWND((nint)windowHandle));
 
     /// <summary>
     /// Reads the process name and token elevation from one process handle. Fields
