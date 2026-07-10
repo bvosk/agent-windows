@@ -24,6 +24,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin perf-data:refs/remotes/origin/perf-data 2>$null
+          $global:LASTEXITCODE = 0
           $contexts = @(@{ Name = 'main'; Shas = @(git rev-list --reverse --topo-order HEAD) })
           $prs = gh pr list --state open --limit 100 --json number,baseRefOid,headRefOid | ConvertFrom-Json
           foreach ($pr in $prs) {
