@@ -14,7 +14,6 @@
     <PropertyGroup Condition="$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests'))">
         <OutputType>Exe</OutputType>
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-        <NoWarn>$(NoWarn);xUnit1051;CA1707</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

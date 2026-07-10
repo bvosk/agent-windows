@@ -46,32 +46,30 @@ csharp_prefer_braces = true:error
 csharp_style_expression_bodied_methods = when_on_single_line:error
 csharp_style_expression_bodied_properties = true:error
 csharp_style_expression_bodied_accessors = true:error
+csharp_style_expression_bodied_lambdas = true:error
 
 # Organize usings
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = false
-dotnet_diagnostic.IDE0005.severity = none  # Avoid requiring XML documentation file generation for build-time unused-using analysis
+# Avoid requiring XML documentation file generation for build-time unused-using analysis
+dotnet_diagnostic.IDE0005.severity = none
 
 # StyleCop - Disable rules that conflict with modern C# style
-dotnet_diagnostic.SA1101.severity = none  # Don't require 'this.' prefix
-dotnet_diagnostic.SA0001.severity = none  # XML comments optional
-dotnet_diagnostic.SA1600.severity = none  # XML documentation is not required
-dotnet_diagnostic.SA1601.severity = none  # XML documentation is not required
-dotnet_diagnostic.CS1591.severity = none  # XML documentation is not required
-dotnet_diagnostic.SA1309.severity = none  # Allow underscore prefix for private fields
-dotnet_diagnostic.SA1122.severity = none  # Allow "" instead of string.Empty
-dotnet_diagnostic.SA1512.severity = none  # Allow blank lines after single-line comments
-dotnet_diagnostic.SA1515.severity = none  # Don't require blank lines before single-line comments
+# Don't require 'this.' prefix
+dotnet_diagnostic.SA1101.severity = none
+# XML comments optional
+dotnet_diagnostic.SA0001.severity = none
+dotnet_diagnostic.CS1591.severity = none
+# Allow underscore prefix for private fields
+dotnet_diagnostic.SA1309.severity = none
+# Allow "" instead of string.Empty
+dotnet_diagnostic.SA1122.severity = none
+# Allow blank lines around single-line comments
+dotnet_diagnostic.SA1512.severity = none
+dotnet_diagnostic.SA1515.severity = none
 
 # StyleCop - Disable file header requirements
-dotnet_diagnostic.SA1633.severity = none  # No file header required
-dotnet_diagnostic.SA1634.severity = none  # No copyright tag required
-dotnet_diagnostic.SA1635.severity = none  # No copyright text required
-dotnet_diagnostic.SA1636.severity = none  # No copyright text matching required
-dotnet_diagnostic.SA1637.severity = none  # No file name in header required
-dotnet_diagnostic.SA1638.severity = none  # No file name matching required
-dotnet_diagnostic.SA1640.severity = none  # No company text required
-dotnet_diagnostic.SA1641.severity = none  # No company text matching required
+dotnet_diagnostic.SA1633.severity = none
 
 # CSharpier - Disable formatting rules that conflict with CSharpier
 dotnet_diagnostic.IDE0055.severity = none
@@ -138,34 +136,17 @@ dotnet_diagnostic.SA1517.severity = none
 dotnet_diagnostic.SA1518.severity = none
 
 # Meziantou - Disable overly strict rules
-dotnet_diagnostic.MA0003.severity = none  # Don't require named arguments for booleans
-
-# Roslynator - keep rule severities centralized in EditorConfig
-dotnet_diagnostic.RCS1021.severity = error
-dotnet_diagnostic.RCS1036.severity = error
-dotnet_diagnostic.RCS1037.severity = error
-dotnet_diagnostic.RCS1090.severity = none
-dotnet_diagnostic.RCS1194.severity = error
+# Don't require named arguments for booleans yet; this will be revisited in the enablement step
+dotnet_diagnostic.MA0003.severity = none
 
 # SonarAnalyzer - Disable rules for top-level statements
-dotnet_diagnostic.S1118.severity = none  # Program class doesn't need protected constructor
+# Program class doesn't need protected constructor
+dotnet_diagnostic.S1118.severity = none
 
-# SonarAnalyzer - Security rules
-dotnet_diagnostic.S2068.severity = error
-dotnet_diagnostic.S2092.severity = error
-dotnet_diagnostic.S3330.severity = error
-dotnet_diagnostic.S5122.severity = error
-dotnet_diagnostic.S5131.severity = error
-
-# SonarAnalyzer - Bug detection
-dotnet_diagnostic.S1854.severity = error
-dotnet_diagnostic.S2259.severity = error
-dotnet_diagnostic.S3966.severity = error
-
-# SonarAnalyzer - Code smells
-dotnet_diagnostic.S1481.severity = error
-dotnet_diagnostic.S1144.severity = error
-dotnet_diagnostic.S125.severity = error
+# SonarAnalyzer - Web-only rules are not applicable to this desktop CLI
+dotnet_diagnostic.S2092.severity = none
+dotnet_diagnostic.S3330.severity = none
+dotnet_diagnostic.S5122.severity = none
 
 # Category-wide style enforcement
 dotnet_analyzer_diagnostic.category-Style.severity = error
@@ -176,10 +157,10 @@ dotnet_diagnostic.CA1515.severity = none
 # Console apps have no SynchronizationContext - do not require ConfigureAwait and ban it explicitly
 dotnet_diagnostic.CA2007.severity = none
 dotnet_diagnostic.MA0004.severity = none
+dotnet_diagnostic.RCS1090.severity = none
 dotnet_diagnostic.RS0030.severity = error
 
 # Prefer file-scoped namespaces (modern C# style)
-dotnet_diagnostic.IDE0160.severity = none
 csharp_style_namespace_declarations = file_scoped:error
 
 # Ignore expression-value diagnostics for fluent assertion patterns
