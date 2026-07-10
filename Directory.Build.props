@@ -6,7 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
-        <AnalysisLevel>latest-All</AnalysisLevel>
+        <AnalysisLevel>10.0-All</AnalysisLevel>
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>

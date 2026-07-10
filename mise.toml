@@ -1,8 +1,8 @@
 [tools]
-dotnet = "10"
 hyperfine = "latest"
 
 [settings]
+idiomatic_version_file_enable_tools = ["dotnet"]
 quiet = true
 unix_default_file_shell_args = "bash"
 unix_default_inline_shell_args = "bash -c"
