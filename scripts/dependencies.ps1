@@ -122,6 +122,29 @@ function Show-EnvironmentFreshness {
     }
 }
 
+function Update-NuGetPackages {
+    param([switch] $Vulnerable)
+
+    # `dotnet package update` currently previews solution-wide updates one project
+    # at a time. With central package management, that can compare an updated
+    # project against the still-old central version and fail with NU1109. Running
+    # the same SDK command per project lets it update Directory.Packages.props as
+    # each centrally managed package is encountered.
+    [xml] $solutionXml = Get-Content -Raw $solution
+    $projects = @($solutionXml.SelectNodes("//Project") | ForEach-Object {
+        Join-Path $repoRoot $_.Path
+    })
+
+    foreach ($project in $projects) {
+        $arguments = @("package", "update", "--project", $project)
+        if ($Vulnerable) {
+            $arguments += "--vulnerable"
+        }
+
+        Invoke-External dotnet $arguments
+    }
+}
+
 function Test-UpdatedDependencies {
     Write-Section "Restore local .NET tools"
     Invoke-External dotnet @("tool", "restore")
@@ -152,7 +175,7 @@ function Invoke-Update {
     Assert-CleanWorktree
 
     Write-Section "Update direct NuGet packages"
-    Invoke-External dotnet @("package", "update", "--project", $solution)
+    Update-NuGetPackages
 
     Write-Section "Update local .NET tools"
     Invoke-External dotnet @("tool", "update", "--local", "--all")
@@ -165,7 +188,7 @@ function Invoke-VulnerabilityFix {
     Assert-CleanWorktree
 
     Write-Section "Update vulnerable NuGet packages"
-    Invoke-External dotnet @("package", "update", "--project", $solution, "--vulnerable")
+    Update-NuGetPackages -Vulnerable
 
     Test-UpdatedDependencies
     Show-EnvironmentFreshness
