@@ -105,7 +105,7 @@ try {
     Assert-Equal 3 $merge.total 'Merge push did not include both parents and the merge commit.'
     Pop-Location
 
-    Write-Host 'Commit matrix operational tests passed.'
+    Write-Output 'Commit matrix operational tests passed.'
 }
 finally {
     if ((Get-Location).Path -eq $temporary) { Pop-Location }

@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $resultsRoot = Join-Path $DataRoot 'results/v1'
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
-function Get-History([string]$Context) {
+function Get-PerformanceHistory([string]$Context) {
     $path = Join-Path $resultsRoot $Context
     if (-not (Test-Path -LiteralPath $path)) { return @() }
     return @(Get-ChildItem -LiteralPath $path -Filter '*.json' | ForEach-Object {
@@ -16,7 +16,7 @@ function Get-History([string]$Context) {
 }
 
 function Write-Context([string]$Context, [string]$Destination) {
-    $history = @(Get-History $Context)
+    $history = @(Get-PerformanceHistory $Context)
     New-Item -ItemType Directory -Force -Path $Destination | Out-Null
     $runsDirectory = Join-Path $Destination 'runs'
     New-Item -ItemType Directory -Force -Path $runsDirectory | Out-Null
@@ -56,9 +56,9 @@ $categories = if ($latest) {
     } | Sort-Object Name)
 } else { @() }
 $epoch = if ($latest -and $latest.testbed) { "$($latest.testbed.runnerImage) $($latest.testbed.runnerImageVersion)" } else { 'awaiting runner data' }
-$categoryText = if ($categories.Count) { ($categories | ForEach-Object { "$($_.Name) $($_.Score.ToString('0.0'))" }) -join ' · ' } else { 'No category data yet' }
+$categoryText = if ($categories.Count) { ($categories | ForEach-Object { "$($_.Name) $($_.Score.ToString('0.0'))" }) -join ' | ' } else { 'No category data yet' }
 $improvement = 100 - $overall
 $svg = @"
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="170" viewBox="0 0 900 170"><style>text{font-family:Segoe UI,Arial,sans-serif;fill:#e6edf3}.t{font-size:24px;font-weight:700}.s{font-size:15px;fill:#8b949e}.c{font-size:14px}</style><rect width="900" height="170" rx="14" fill="#0d1117"/><text x="28" y="40" class="t">agent-windows performance · $($overall.ToString('0.0'))</text><text x="28" y="68" class="s">Baseline = 100 · lower is better · latest $sha · improvement $($improvement.ToString('+0.0;-0.0;0.0'))%</text><text x="28" y="96" class="c">$categoryText</text><text x="28" y="122" class="s">Runner epoch: $epoch</text><rect x="28" y="140" width="844" height="10" rx="5" fill="#21262d"/><rect x="28" y="140" width="$([Math]::Min(844, $overall * 8.44))" height="10" rx="5" fill="#3fb950"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="170" viewBox="0 0 900 170"><style>text{font-family:Segoe UI,Arial,sans-serif;fill:#e6edf3}.t{font-size:24px;font-weight:700}.s{font-size:15px;fill:#8b949e}.c{font-size:14px}</style><rect width="900" height="170" rx="14" fill="#0d1117"/><text x="28" y="40" class="t">agent-windows performance | $($overall.ToString('0.0'))</text><text x="28" y="68" class="s">Baseline = 100 | lower is better | latest $sha | improvement $($improvement.ToString('+0.0;-0.0;0.0'))%</text><text x="28" y="96" class="c">$categoryText</text><text x="28" y="122" class="s">Runner epoch: $epoch</text><rect x="28" y="140" width="844" height="10" rx="5" fill="#21262d"/><rect x="28" y="140" width="$([Math]::Min(844, $overall * 8.44))" height="10" rx="5" fill="#3fb950"/></svg>
 "@
 Set-Content -LiteralPath (Join-Path $OutputRoot 'summary.svg') -Value $svg
