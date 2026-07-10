@@ -4,9 +4,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 using System.Text.Json.Serialization;
-using AgentWindows.Core.Model;
-using AgentWindows.Core.Protocol;
+using AgentWindows.Core.Input;
+using AgentWindows.Core.Protocol.Transport;
 using AgentWindows.Core.Session;
+using AgentWindows.Core.Windows;
 using Shouldly;
 using Xunit;
 

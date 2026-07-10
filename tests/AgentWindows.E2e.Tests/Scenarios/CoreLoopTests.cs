@@ -1,5 +1,5 @@
-using AgentWindows.E2E.Tests.Infrastructure;
 using AgentWindows.Core.Session;
+using AgentWindows.E2E.Tests.Infrastructure;
 using Shouldly;
 using Xunit;
 

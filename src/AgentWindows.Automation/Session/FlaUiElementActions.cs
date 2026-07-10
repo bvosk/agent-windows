@@ -1,8 +1,9 @@
 using System.Runtime.InteropServices;
+using AgentWindows.Automation.Input;
+using AgentWindows.Automation.Windows;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
-using AgentWindows.Core.Model;
 using AgentWindows.Core.Session;
-using AgentWindows.Core.Snapshot;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Conditions;
@@ -11,7 +12,7 @@ using FlaUI.Core.Input;
 using FlaUI.Core.Patterns;
 using FlaUI.Core.WindowsAPI;
 
-namespace AgentWindows.Automation;
+namespace AgentWindows.Automation.Session;
 
 internal static class FlaUiElementActions
 {

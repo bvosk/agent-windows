@@ -99,7 +99,7 @@ public sealed class CommandContextTests
     {
         var session = $"test-command-context-{Guid.NewGuid():N}";
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var serverTask = ExchangeOneResponse(
+        var serverTask = ExchangeOneResponseAsync(
             PipeNames.For(session),
             DaemonResponse.Success(new AckPayload { Detail = "stopped" }),
             timeout.Token
@@ -154,7 +154,7 @@ public sealed class CommandContextTests
         return (root, context);
     }
 
-    private static async Task<DaemonRequest?> ExchangeOneResponse(
+    private static async Task<DaemonRequest?> ExchangeOneResponseAsync(
         string pipeName,
         DaemonResponse response,
         CancellationToken cancellationToken

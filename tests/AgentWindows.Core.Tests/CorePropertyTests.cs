@@ -1,7 +1,8 @@
 using System.Globalization;
+using AgentWindows.Core.Elements;
 using AgentWindows.Core.Input;
-using AgentWindows.Core.Model;
-using AgentWindows.Core.Protocol;
+using AgentWindows.Core.Protocol.Interaction;
+using AgentWindows.Core.Protocol.Transport;
 using CsCheck;
 using Shouldly;
 using Xunit;

@@ -1,7 +1,8 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AgentWindows.Core.Model;
+using AgentWindows.Core.Input;
+using AgentWindows.Core.Windows;
 
 namespace AgentWindows.Core.Protocol.Transport;
 

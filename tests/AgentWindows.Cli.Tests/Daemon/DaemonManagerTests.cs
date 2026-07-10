@@ -10,15 +10,15 @@ namespace AgentWindows.Cli.Tests.Daemon;
 public sealed class DaemonManagerTests
 {
     [Fact]
-    public void StopAll_NoSessionsReportsNothingRunning()
+    public async Task StopAll_NoSessionsReportsNothingRunning()
     {
-        var response = DaemonManager.StopAll(
+        var response = await DaemonManager.StopAllAsync(
             static () => [],
             _ => throw new InvalidOperationException("No pipe should be probed."),
             _ => throw new InvalidOperationException("No session should be stopped."),
             static () => 7,
             static _ => TimeSpan.Zero,
-            _ => throw new InvalidOperationException("No delay should occur.")
+            static (_, _) => throw new InvalidOperationException("No delay should occur.")
         );
 
         response.Ok.ShouldBeTrue();
@@ -26,12 +26,12 @@ public sealed class DaemonManagerTests
     }
 
     [Fact]
-    public void StopAll_MultipleSessionsStopsEachAndReportsNames()
+    public async Task StopAll_MultipleSessionsStopsEachAndReportsNames()
     {
         var stopped = new List<string>();
         var probes = new List<string>();
 
-        var response = DaemonManager.StopAll(
+        var response = await DaemonManager.StopAllAsync(
             static () => ["alpha", "beta"],
             pipeName =>
             {
@@ -45,7 +45,7 @@ public sealed class DaemonManagerTests
             },
             static () => 7,
             static _ => TimeSpan.Zero,
-            _ => throw new InvalidOperationException("No delay should occur.")
+            static (_, _) => throw new InvalidOperationException("No delay should occur.")
         );
 
         response.Ok.ShouldBeTrue();
@@ -57,12 +57,12 @@ public sealed class DaemonManagerTests
     }
 
     [Fact]
-    public void StopAll_FirstFailureStopsProcessingAndReturnsFailure()
+    public async Task StopAll_FirstFailureStopsProcessingAndReturnsFailure()
     {
         var failure = DaemonResponse.Failure(ErrorCodes.InternalError, "could not stop beta");
         var stopped = new List<string>();
 
-        var response = DaemonManager.StopAll(
+        var response = await DaemonManager.StopAllAsync(
             static () => ["alpha", "beta", "gamma"],
             _ => throw new InvalidOperationException("Pipes should not be polled after failure."),
             session =>
@@ -75,7 +75,7 @@ public sealed class DaemonManagerTests
             static () =>
                 throw new InvalidOperationException("Timer should not start after failure."),
             static _ => TimeSpan.Zero,
-            _ => throw new InvalidOperationException("No delay should occur.")
+            static (_, _) => throw new InvalidOperationException("No delay should occur.")
         );
 
         response.ShouldBeSameAs(failure);
@@ -83,12 +83,12 @@ public sealed class DaemonManagerTests
     }
 
     [Fact]
-    public void StopAll_WaitsUntilPipeDisappears()
+    public async Task StopAll_WaitsUntilPipeDisappears()
     {
         var exists = new Queue<bool>([true, false]);
         var delays = new List<TimeSpan>();
 
-        var response = DaemonManager.StopAll(
+        var response = await DaemonManager.StopAllAsync(
             static () => ["alpha"],
             pipeName =>
             {
@@ -102,7 +102,11 @@ public sealed class DaemonManagerTests
                 started.ShouldBe(37);
                 return TimeSpan.FromSeconds(9);
             },
-            delays.Add
+            (duration, _) =>
+            {
+                delays.Add(duration);
+                return Task.CompletedTask;
+            }
         );
 
         response.Ok.ShouldBeTrue();
@@ -110,10 +114,10 @@ public sealed class DaemonManagerTests
     }
 
     [Fact]
-    public void StopAll_TimeoutReportsBusySession()
+    public async Task StopAll_TimeoutReportsBusySession()
     {
-        var exception = Should.Throw<AutomationException>(() =>
-            DaemonManager.StopAll(
+        var exception = await Should.ThrowAsync<AutomationException>(() =>
+            DaemonManager.StopAllAsync(
                 static () => ["alpha"],
                 _ => true,
                 _ => Success(),
@@ -123,7 +127,8 @@ public sealed class DaemonManagerTests
                     started.ShouldBe(11);
                     return TimeSpan.FromSeconds(10);
                 },
-                _ => throw new InvalidOperationException("No delay should occur after timeout.")
+                static (_, _) =>
+                    throw new InvalidOperationException("No delay should occur after timeout.")
             )
         );
 

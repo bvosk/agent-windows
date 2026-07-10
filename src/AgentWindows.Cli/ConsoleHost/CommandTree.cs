@@ -587,22 +587,27 @@ public static class CommandTree
         var stop = new Command("stop", "Stop the daemon for this session, or every session.");
         stop.Options.Add(allOption);
         context.Attach(stop, _ => new ShutdownRequest());
-        stop.SetAction(parseResult =>
-        {
-            if (!parseResult.GetValue(allOption))
+        stop.SetAction(
+            async (parseResult, cancellationToken) =>
             {
-                return context.Execute(parseResult, new ShutdownRequest());
-            }
+                if (!parseResult.GetValue(allOption))
+                {
+                    return context.Execute(parseResult, new ShutdownRequest());
+                }
 
-            try
-            {
-                return context.Render(parseResult, DaemonManager.StopAll());
+                try
+                {
+                    return context.Render(
+                        parseResult,
+                        await DaemonManager.StopAllAsync(cancellationToken)
+                    );
+                }
+                catch (AutomationException ex)
+                {
+                    return context.Render(parseResult, DaemonResponse.Failure(ex.Code, ex.Message));
+                }
             }
-            catch (AutomationException ex)
-            {
-                return context.Render(parseResult, DaemonResponse.Failure(ex.Code, ex.Message));
-            }
-        });
+        );
         daemon.Subcommands.Add(stop);
 
         return daemon;

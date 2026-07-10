@@ -13,23 +13,35 @@ public static class DaemonManager
     private static readonly Func<IReadOnlyList<string>> _listSessions = PipeProbe.ListSessions;
     private static readonly Func<string, bool> _pipeExists = PipeProbe.Exists;
     private static readonly TimeSpan _shutdownTimeout = TimeSpan.FromSeconds(10);
-    private static readonly Action<TimeSpan> _sleep = Thread.Sleep;
+    private static readonly Func<TimeSpan, CancellationToken, Task> _delay = static (
+        duration,
+        cancellationToken
+    ) => Task.Delay(duration, TimeProvider.System, cancellationToken);
     private static readonly Func<string, DaemonResponse> _stopSession = StopSession;
 
     [ExcludeFromCodeCoverage(
         Justification = "Process-wide composition wrapper; orchestration is covered through the "
             + "injectable overload and production wiring is exercised by the reinstall smoke path."
     )]
-    public static DaemonResponse StopAll() =>
-        StopAll(_listSessions, _pipeExists, _stopSession, _getTimestamp, _getElapsedTime, _sleep);
+    public static Task<DaemonResponse> StopAllAsync(CancellationToken cancellationToken) =>
+        StopAllAsync(
+            _listSessions,
+            _pipeExists,
+            _stopSession,
+            _getTimestamp,
+            _getElapsedTime,
+            _delay,
+            cancellationToken
+        );
 
-    internal static DaemonResponse StopAll(
+    internal static async Task<DaemonResponse> StopAllAsync(
         Func<IReadOnlyList<string>> listSessions,
         Func<string, bool> pipeExists,
         Func<string, DaemonResponse> stopSession,
         Func<long> getTimestamp,
         Func<long, TimeSpan> getElapsedTime,
-        Action<TimeSpan> sleep
+        Func<TimeSpan, CancellationToken, Task> delay,
+        CancellationToken cancellationToken = default
     )
     {
         var sessions = listSessions();
@@ -54,7 +66,7 @@ public static class DaemonManager
                 );
             }
 
-            sleep(TimeSpan.FromMilliseconds(25));
+            await delay(TimeSpan.FromMilliseconds(25), cancellationToken);
         }
 
         var detail =

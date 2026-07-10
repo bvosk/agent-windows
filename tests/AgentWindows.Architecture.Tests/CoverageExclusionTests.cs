@@ -13,11 +13,11 @@ public sealed class CoverageExclusionTests
 {
     private const string _excludedAssemblies =
         "[coverlet.*]*,[xunit.*]*,[Microsoft.Testing.*]*,[Microsoft.Testplatform.*]*,"
-        + "[Microsoft.VisualStudio.TestPlatform.*]*,[MSTest*]*,[testhost*]*,"
-        + "[AgentWindows.Automation]*";
+        + "[Microsoft.VisualStudio.TestPlatform.*]*,[MSTest*]*,[testhost*]*";
     private const string _excludedAttributes =
         "ExcludeFromCodeCoverage,ExcludeFromCodeCoverageAttribute,GeneratedCodeAttribute,"
-        + "CompilerGeneratedAttribute";
+        + "CompilerGeneratedAttribute,AsyncStateMachineAttribute,IteratorStateMachineAttribute,"
+        + "Obsolete";
     private const string _includedAssemblies = "[*]*";
     private static readonly IReadOnlyDictionary<string, string> _approvedExclusions =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -28,7 +28,9 @@ public sealed class CoverageExclusionTests
             ["method AgentWindows.Cli.Daemon.DaemonHost.CreateNamedPipeServer(System.String)"] =
                 "Native named-pipe factory is exercised by daemon-lifecycle end-to-end tests; "
                 + "creation policy is unit tested through CreateServer.",
-            ["method AgentWindows.Cli.Daemon.DaemonManager.StopAll()"] =
+            [
+                "method AgentWindows.Cli.Daemon.DaemonManager.StopAllAsync(System.Threading.CancellationToken)"
+            ] =
                 "Process-wide composition wrapper; orchestration is covered through the "
                 + "injectable overload and production wiring is exercised by the reinstall "
                 + "smoke path.",
