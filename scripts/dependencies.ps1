@@ -154,6 +154,9 @@ function Test-UpdatedDependencies {
     Write-Section "NuGet vulnerability audit"
     Invoke-External dotnet @("restore", $solution, "--force-evaluate")
 
+    Write-Section "Normalize dependency manifests"
+    Invoke-External dotnet @("csharpier", "format", "Directory.Packages.props")
+
     Write-Section "Formatting"
     Invoke-External dotnet @("csharpier", "check", ".")
 
