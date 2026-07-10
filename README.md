@@ -100,11 +100,25 @@ mise run e2e        # end-to-end tests: the real CLI drives a bundled WPF target
 mise run coverage   # tests + HTML coverage report under artifacts/coverage
 mise run check      # formatting + analyzers + strict Core/CLI coverage gate
 mise run format     # CSharpier
+mise run deps:check # report outdated or vulnerable dependencies without changing files
 mise run bench      # hyperfine latency benchmark against the bundled target app
 mise run profile    # dotnet-trace capture of the daemon under snapshot load
 mise run publish    # self-contained exe + dotnet tool package under artifacts/
 mise run reinstall  # publish, stop all daemons, and replace the global tool
 ```
+
+Dependency maintenance is local and explicit:
+
+```bash
+mise run deps:check                 # read-only freshness and vulnerability report
+mise run deps:update                # latest stable NuGet packages and local dotnet tools
+mise run deps:fix-vulnerable        # smallest available safe NuGet upgrades
+mise run deps:update -- -Force      # bypass the clean-worktree safeguard
+```
+
+The mutating commands require a clean Git worktree by default and run formatting,
+build, unit tests, and architecture tests after changing dependencies. They report
+SDK and mise updates but do not change `global.json` or machine-installed tools.
 
 To install the CLI globally after publishing:
 

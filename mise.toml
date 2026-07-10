@@ -128,6 +128,21 @@ run = "dotnet csharpier check ."
 description = "Formatting check plus analyzer-enforced build"
 depends = ["format:check", "build"]
 
+[tasks."deps:check"]
+description = "Report dependency freshness and fail on known NuGet vulnerabilities"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/dependencies.ps1 check"
+
+[tasks."deps:update"]
+description = "Update direct NuGet packages and local dotnet tools, then verify"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/dependencies.ps1 update"
+
+[tasks."deps:fix-vulnerable"]
+description = "Apply the smallest safe NuGet vulnerability fixes, then verify"
+shell = "pwsh -NoProfile -Command"
+run = "& ./scripts/dependencies.ps1 fix-vulnerable"
+
 [tasks.doctor]
 description = "Validate local toolchain for contributors and agents"
 run = '''
