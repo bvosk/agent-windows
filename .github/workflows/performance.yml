@@ -59,7 +59,7 @@ jobs:
         run: |
           if ($env:EVENT_NAME -eq 'push' -and $env:REF_NAME -ne $env:DEFAULT_BRANCH) {
             "has_commits=false" >> $env:GITHUB_OUTPUT
-            "matrix={\"include\":[]}" >> $env:GITHUB_OUTPUT
+            'matrix={"include":[]}' >> $env:GITHUB_OUTPUT
             exit 0
           }
           $context = if ($env:EVENT_NAME -eq 'pull_request') { "pr-$env:PR_NUMBER" } elseif ($env:EVENT_NAME -eq 'workflow_dispatch') { $env:INPUT_CONTEXT } else { 'main' }
