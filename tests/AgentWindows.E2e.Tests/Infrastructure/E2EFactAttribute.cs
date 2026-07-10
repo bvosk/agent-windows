@@ -13,15 +13,12 @@ public sealed class E2EFactAttribute : FactAttribute
     )
         : base(sourceFilePath, sourceLineNumber)
     {
-        if (
-            !string.Equals(
-                Environment.GetEnvironmentVariable("AGENT_WINDOWS_E2E"),
-                "1",
-                StringComparison.Ordinal
-            )
+        Skip = string.Equals(
+            Environment.GetEnvironmentVariable("AGENT_WINDOWS_E2E"),
+            "1",
+            StringComparison.Ordinal
         )
-        {
-            Skip = "Set AGENT_WINDOWS_E2E=1 to run e2e tests (they drive a real desktop UI).";
-        }
+            ? null
+            : "Set AGENT_WINDOWS_E2E=1 to run e2e tests (they drive a real desktop UI).";
     }
 }

@@ -57,6 +57,12 @@ public sealed class RequestDispatcher(IAutomationSession session)
     private static string? NormalizeOptionalRef(string? input) =>
         input is null ? null : NormalizeRef(input);
 
+    private static DaemonResponse UnsupportedRequest(DaemonRequest request) =>
+        DaemonResponse.Failure(
+            ErrorCodes.BadRequest,
+            $"Unsupported request type '{request.GetType().Name}'."
+        );
+
     private static void ValidateWindowAction(WindowActionRequest request)
     {
         if (request.Action == WindowActionKind.Move && (request.X is null || request.Y is null))
@@ -68,18 +74,27 @@ public sealed class RequestDispatcher(IAutomationSession session)
         }
 
         if (
-            request.Action == WindowActionKind.Resize
-            && (request.Width is null || request.Height is null)
+            request.Action != WindowActionKind.Resize
+            || (request.Width is not null && request.Height is not null)
         )
         {
-            throw new AutomationException(
-                ErrorCodes.BadRequest,
-                "window resize requires --width and --height."
-            );
+            return;
         }
+
+        throw new AutomationException(
+            ErrorCodes.BadRequest,
+            "window resize requires --width and --height."
+        );
     }
 
     private DaemonResponse Execute(DaemonRequest request) =>
+        ExecuteSessionRequest(request)
+        ?? ExecuteCaptureRequest(request)
+        ?? ExecuteElementRequest(request)
+        ?? ExecuteWindowRequest(request)
+        ?? UnsupportedRequest(request);
+
+    private DaemonResponse? ExecuteSessionRequest(DaemonRequest request) =>
         request switch
         {
             ListWindowsRequest => DaemonResponse.Success(
@@ -92,7 +107,24 @@ public sealed class RequestDispatcher(IAutomationSession session)
                 }
             ),
             AttachRequest r => ExecuteAttach(r),
+            StatusRequest => DaemonResponse.Success(
+                new StatusPayload { Status = _session.GetStatus() }
+            ),
+            ShutdownRequest => DaemonResponse.Success(new AckPayload { Detail = "shutting down" }),
+            _ => null,
+        };
+
+    private DaemonResponse? ExecuteCaptureRequest(DaemonRequest request) =>
+        request switch
+        {
             SnapshotRequest r => ExecuteSnapshot(r),
+            ScreenshotRequest r => ExecuteScreenshot(r),
+            _ => null,
+        };
+
+    private DaemonResponse? ExecuteElementRequest(DaemonRequest request) =>
+        request switch
+        {
             ClickRequest r => ExecuteClick(r),
             FillRequest r => ExecuteFill(r),
             PressRequest r => ExecutePress(r),
@@ -101,17 +133,15 @@ public sealed class RequestDispatcher(IAutomationSession session)
             ToggleRequest r => ExecuteToggle(r),
             ScrollRequest r => ExecuteScroll(r),
             WaitRequest r => ExecuteWait(r),
-            ScreenshotRequest r => ExecuteScreenshot(r),
+            _ => null,
+        };
+
+    private DaemonResponse? ExecuteWindowRequest(DaemonRequest request) =>
+        request switch
+        {
             WindowActionRequest r => ExecuteWindowAction(r),
             CloseRequest r => ExecuteClose(r),
-            StatusRequest => DaemonResponse.Success(
-                new StatusPayload { Status = _session.GetStatus() }
-            ),
-            ShutdownRequest => DaemonResponse.Success(new AckPayload { Detail = "shutting down" }),
-            _ => DaemonResponse.Failure(
-                ErrorCodes.BadRequest,
-                $"Unsupported request type '{request.GetType().Name}'."
-            ),
+            _ => null,
         };
 
     private DaemonResponse ExecuteAttach(AttachRequest request) =>
@@ -203,7 +233,7 @@ public sealed class RequestDispatcher(IAutomationSession session)
 
     private DaemonResponse ExecutePress(PressRequest request)
     {
-        _session.Press(KeyGesture.Parse(request.Keys));
+        _session.Press(KeyChord.Parse(request.Keys));
         return Ack($"pressed {request.Keys}");
     }
 

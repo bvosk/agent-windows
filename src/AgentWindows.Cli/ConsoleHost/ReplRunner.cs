@@ -99,15 +99,17 @@ public sealed class ReplRunner(
     {
         var explicitSession = _context.GetExplicitSession(parseResult);
         if (
-            explicitSession is not null
-            && !string.Equals(explicitSession, _session, StringComparison.Ordinal)
+            explicitSession is null
+            || string.Equals(explicitSession, _session, StringComparison.Ordinal)
         )
         {
-            throw new AutomationException(
-                ErrorCodes.BadRequest,
-                $"--session cannot change inside a REPL (this session is '{_session}'). "
-                    + "Start another 'agent-windows repl --session <name>' instead."
-            );
+            return;
         }
+
+        throw new AutomationException(
+            ErrorCodes.BadRequest,
+            $"--session cannot change inside a REPL (this session is '{_session}'). "
+                + "Start another 'agent-windows repl --session <name>' instead."
+        );
     }
 }

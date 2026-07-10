@@ -126,12 +126,12 @@ public sealed class SnapshotBuilder
     private static void AddToggleState(AutomationElement element, List<string> states)
     {
         var toggle = element.Patterns.Toggle.PatternOrDefault;
-        if (toggle is not null)
+        if (toggle is null)
         {
-            states.Add(
-                toggle.ToggleState.ValueOrDefault == ToggleState.On ? "checked" : "unchecked"
-            );
+            return;
         }
+
+        states.Add(toggle.ToggleState.ValueOrDefault == ToggleState.On ? "checked" : "unchecked");
     }
 
     private static void AddExpandState(AutomationElement element, List<string> states)
@@ -155,10 +155,12 @@ public sealed class SnapshotBuilder
     private static void AddSelectionState(AutomationElement element, List<string> states)
     {
         var selectionItem = element.Patterns.SelectionItem.PatternOrDefault;
-        if (selectionItem is not null && selectionItem.IsSelected.ValueOrDefault)
+        if (selectionItem is null || !selectionItem.IsSelected.ValueOrDefault)
         {
-            states.Add("selected");
+            return;
         }
+
+        states.Add("selected");
     }
 
     private static List<string> CollectStates(AutomationElement element)
@@ -300,10 +302,12 @@ public sealed class SnapshotBuilder
 
         // Combo boxes, lists, and trees often lack ValuePattern; surface their
         // selected item names as the value once the cache scope has closed.
-        if (element.Patterns.Selection.IsSupported)
+        if (!element.Patterns.Selection.IsSupported)
         {
-            _selectionFixups.Add((node, element));
+            return;
         }
+
+        _selectionFixups.Add((node, element));
     }
 
     private List<UiNode> BuildChildren(AutomationElement element, int depth)

@@ -76,9 +76,18 @@ public static class SkillCatalog
 
     private static string ReadResource(string normalizedPath)
     {
-        using var stream = typeof(SkillCatalog).Assembly.GetManifestResourceStream(
-            _resources[normalizedPath]
-        )!;
+        if (!_resources.TryGetValue(normalizedPath, out var resourceName))
+        {
+            throw new InvalidOperationException(
+                $"Embedded skill resource '{normalizedPath}' is not registered."
+            );
+        }
+
+        using var stream =
+            typeof(SkillCatalog).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded skill resource '{resourceName}' could not be opened."
+            );
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     }

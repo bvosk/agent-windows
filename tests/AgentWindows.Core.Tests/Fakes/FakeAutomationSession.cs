@@ -76,10 +76,10 @@ public sealed class FakeAutomationSession : IAutomationSession
     public void Fill(string elementRef, string text, TimeSpan timeout) =>
         Record($"fill ref={elementRef} text={text} timeout={Ms(timeout)}");
 
-    public void Press(KeyGesture gesture)
+    public void Press(KeyChord chord)
     {
-        ArgumentNullException.ThrowIfNull(gesture);
-        Record($"press modifiers={string.Join('+', gesture.Modifiers)} key={gesture.Key}");
+        ArgumentNullException.ThrowIfNull(chord);
+        Record($"press modifiers={string.Join('+', chord.Modifiers)} key={chord.Key}");
     }
 
     public void SelectItem(string elementRef, string item, TimeSpan timeout) =>
@@ -142,10 +142,12 @@ public sealed class FakeAutomationSession : IAutomationSession
     private void Record(string call)
     {
         Calls.Add(call);
-        if (ThrowOnNextCall is { } exception)
+        if (ThrowOnNextCall is not { } exception)
         {
-            ThrowOnNextCall = null;
-            throw exception;
+            return;
         }
+
+        ThrowOnNextCall = null;
+        throw exception;
     }
 }

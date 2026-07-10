@@ -123,7 +123,7 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
-    public void Press_ParsesGestureBeforeCallingSession()
+    public void Press_ParsesChordBeforeCallingSession()
     {
         var response = _dispatcher.Dispatch(new PressRequest { Keys = "Ctrl+Shift+P" });
 
@@ -132,7 +132,7 @@ public sealed class RequestDispatcherTests : IDisposable
     }
 
     [Fact]
-    public void Press_InvalidGestureSyntax_FailsWithBadRequest()
+    public void Press_InvalidChordSyntax_FailsWithBadRequest()
     {
         var response = _dispatcher.Dispatch(new PressRequest { Keys = "Ctrl+" });
 
@@ -220,6 +220,17 @@ public sealed class RequestDispatcherTests : IDisposable
 
         response.Ok.ShouldBeTrue();
         response.Payload.ShouldBeOfType<AckPayload>().Detail.ShouldBe("shutting down");
+        _session.Calls.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void UnsupportedRequest_FailsWithBadRequest()
+    {
+        var response = _dispatcher.Dispatch(new UnknownRequest());
+
+        response.Ok.ShouldBeFalse();
+        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
+        response.Message.ShouldBe("Unsupported request type 'UnknownRequest'.");
         _session.Calls.ShouldBeEmpty();
     }
 
@@ -353,16 +364,5 @@ public sealed class RequestDispatcherTests : IDisposable
         _session.Calls.ShouldBe(["wait ref=e8 text= gone=False timeout=10000"]);
     }
 
-    [Fact]
-    public void UnsupportedRequest_ReturnsBadRequest()
-    {
-        var response = _dispatcher.Dispatch(new UnsupportedRequest());
-
-        response.Ok.ShouldBeFalse();
-        response.ErrorCode.ShouldBe(ErrorCodes.BadRequest);
-        response.Message.ShouldBe("Unsupported request type 'UnsupportedRequest'.");
-        _session.Calls.ShouldBeEmpty();
-    }
-
-    private sealed record UnsupportedRequest : DaemonRequest;
+    private sealed record UnknownRequest : DaemonRequest;
 }

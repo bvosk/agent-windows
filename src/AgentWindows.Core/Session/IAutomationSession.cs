@@ -27,7 +27,7 @@ public interface IAutomationSession : IDisposable
 
     public void Fill(string elementRef, string text, TimeSpan timeout);
 
-    public void Press(KeyGesture gesture);
+    public void Press(KeyChord chord);
 
     public void SelectItem(string elementRef, string item, TimeSpan timeout);
 

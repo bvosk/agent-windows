@@ -178,6 +178,70 @@ dotnet_style_prefer_simplified_boolean_expressions = true:error
 # Collection expressions (C# 12+)
 dotnet_style_prefer_collection_expression = true:error
 
+# Off-by-default rules selected for build enforcement
+# Microsoft code metrics
+dotnet_diagnostic.CA1501.severity = warning
+dotnet_diagnostic.CA1502.severity = warning
+dotnet_diagnostic.CA1505.severity = warning
+dotnet_diagnostic.CA1506.severity = warning
+
+# Meziantou async, process, correctness, and API rules
+dotnet_diagnostic.MA0080.severity = warning
+dotnet_diagnostic.MA0104.severity = warning
+dotnet_diagnostic.MA0121.severity = warning
+dotnet_diagnostic.MA0137.severity = warning
+dotnet_diagnostic.MA0138.severity = warning
+dotnet_diagnostic.MA0155.severity = warning
+dotnet_diagnostic.MA0156.severity = warning
+dotnet_diagnostic.MA0157.severity = warning
+dotnet_diagnostic.MA0161.severity = warning
+dotnet_diagnostic.MA0162.severity = warning
+dotnet_diagnostic.MA0167.severity = warning
+dotnet_diagnostic.MA0172.severity = warning
+dotnet_diagnostic.MA0186.severity = warning
+
+# Roslynator maintainability and performance rules
+dotnet_diagnostic.RCS1174.severity = warning
+dotnet_diagnostic.RCS1198.severity = warning
+dotnet_diagnostic.RCS1208.severity = warning
+dotnet_diagnostic.RCS1255.severity = warning
+
+# StyleCop non-formatting correctness rules
+dotnet_diagnostic.SA1409.severity = warning
+dotnet_diagnostic.SA1603.severity = warning
+
+# Sonar correctness, security, interop, async, time, and maintainability rules
+dotnet_diagnostic.S1067.severity = warning
+dotnet_diagnostic.S107.severity = warning
+dotnet_diagnostic.S1147.severity = warning
+dotnet_diagnostic.S1226.severity = warning
+dotnet_diagnostic.S134.severity = warning
+dotnet_diagnostic.S138.severity = warning
+dotnet_diagnostic.S1541.severity = warning
+dotnet_diagnostic.S2197.severity = warning
+dotnet_diagnostic.S2330.severity = warning
+dotnet_diagnostic.S2387.severity = warning
+dotnet_diagnostic.S2931.severity = warning
+dotnet_diagnostic.S3215.severity = warning
+dotnet_diagnostic.S3234.severity = warning
+dotnet_diagnostic.S3366.severity = warning
+dotnet_diagnostic.S3776.severity = warning
+dotnet_diagnostic.S3884.severity = warning
+dotnet_diagnostic.S3902.severity = warning
+dotnet_diagnostic.S4000.severity = warning
+dotnet_diagnostic.S4212.severity = warning
+dotnet_diagnostic.S4214.severity = warning
+dotnet_diagnostic.S4457.severity = warning
+dotnet_diagnostic.S4462.severity = warning
+dotnet_diagnostic.S5042.severity = warning
+dotnet_diagnostic.S6507.severity = warning
+dotnet_diagnostic.S6563.severity = warning
+dotnet_diagnostic.S6566.severity = warning
+
+# Production code must express nullable invariants without the null-forgiving operator.
+[src/**/*.cs]
+dotnet_diagnostic.MA0191.severity = warning
+
 # LibraryImport callbacks intentionally use the function-pointer pattern recommended for native interop.
 [src/AgentWindows.Automation/Win32WindowEnumerator.cs]
 dotnet_diagnostic.S6640.severity = none

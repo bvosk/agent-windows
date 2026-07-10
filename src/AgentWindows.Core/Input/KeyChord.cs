@@ -8,7 +8,7 @@ namespace AgentWindows.Core.Input;
 /// key token); which named keys exist is decided by the automation layer, the
 /// single authority for the key vocabulary.
 /// </summary>
-public sealed record KeyGesture
+public sealed record KeyChord
 {
     private static readonly Dictionary<string, KeyModifier> _modifierNames = new(
         StringComparer.OrdinalIgnoreCase
@@ -23,7 +23,7 @@ public sealed record KeyGesture
         ["Meta"] = KeyModifier.Win,
     };
 
-    private KeyGesture(IReadOnlyList<KeyModifier> modifiers, string key)
+    private KeyChord(IReadOnlyList<KeyModifier> modifiers, string key)
     {
         Modifiers = modifiers;
         Key = key;
@@ -34,17 +34,17 @@ public sealed record KeyGesture
     /// <summary>The key token as written: a named key (e.g. "Enter") or a character.</summary>
     public string Key { get; }
 
-    public static KeyGesture Parse(string input) =>
-        TryParse(input, out var gesture)
-            ? gesture
+    public static KeyChord Parse(string input) =>
+        TryParse(input, out var chord)
+            ? chord
             : throw new AutomationException(
                 ErrorCodes.BadRequest,
-                $"Cannot parse key gesture '{input}'. Expected e.g. 'Enter', 'Ctrl+S', 'Ctrl+Shift+Tab'."
+                $"Cannot parse key chord '{input}'. Expected e.g. 'Enter', 'Ctrl+S', 'Ctrl+Shift+Tab'."
             );
 
-    public static bool TryParse(string? input, [NotNullWhen(true)] out KeyGesture? gesture)
+    public static bool TryParse(string? input, [NotNullWhen(true)] out KeyChord? chord)
     {
-        gesture = null;
+        chord = null;
         if (string.IsNullOrWhiteSpace(input))
         {
             return false;
@@ -71,7 +71,7 @@ public sealed record KeyGesture
             return false;
         }
 
-        gesture = new KeyGesture(modifiers, key);
+        chord = new KeyChord(modifiers, key);
         return true;
     }
 }

@@ -141,6 +141,20 @@ public static class CommandTree
     private static string ResolveAppPath(string app) =>
         File.Exists(app) ? Path.GetFullPath(app) : app;
 
+    private static string GetRequiredValue(ParseResult parseResult, Argument<string> argument) =>
+        parseResult.GetValue(argument)
+        ?? throw new AutomationException(
+            ErrorCodes.BadRequest,
+            $"Missing required argument '{argument.Name}'."
+        );
+
+    private static string GetRequiredValue(ParseResult parseResult, Option<string> option) =>
+        parseResult.GetValue(option)
+        ?? throw new AutomationException(
+            ErrorCodes.BadRequest,
+            $"Missing required option '{option.Name}'."
+        );
+
     private static Option<int> CreateTimeoutOption() =>
         new("--timeout")
         {
@@ -175,7 +189,7 @@ public static class CommandTree
             command,
             parseResult => new LaunchRequest
             {
-                Path = ResolveAppPath(parseResult.GetValue(appOption)!),
+                Path = ResolveAppPath(GetRequiredValue(parseResult, appOption)),
                 Arguments = parseResult.GetValue(argsOption),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
@@ -299,8 +313,8 @@ public static class CommandTree
             command,
             parseResult => new FillRequest
             {
-                Ref = parseResult.GetValue(refArgument)!,
-                Text = parseResult.GetValue(textArgument)!,
+                Ref = GetRequiredValue(parseResult, refArgument),
+                Text = GetRequiredValue(parseResult, textArgument),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
         );
@@ -317,7 +331,7 @@ public static class CommandTree
         command.Arguments.Add(keysArgument);
         context.Attach(
             command,
-            parseResult => new PressRequest { Keys = parseResult.GetValue(keysArgument)! }
+            parseResult => new PressRequest { Keys = GetRequiredValue(parseResult, keysArgument) }
         );
         return command;
     }
@@ -341,8 +355,8 @@ public static class CommandTree
             command,
             parseResult => new SelectRequest
             {
-                Ref = parseResult.GetValue(refArgument)!,
-                Item = parseResult.GetValue(itemArgument)!,
+                Ref = GetRequiredValue(parseResult, refArgument),
+                Item = GetRequiredValue(parseResult, itemArgument),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
         );
@@ -368,7 +382,7 @@ public static class CommandTree
             command,
             parseResult => new ExpandRequest
             {
-                Ref = parseResult.GetValue(refArgument)!,
+                Ref = GetRequiredValue(parseResult, refArgument),
                 Collapse = parseResult.GetValue(collapseOption),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
@@ -397,7 +411,7 @@ public static class CommandTree
             command,
             parseResult =>
                 RequestBuilder.BuildToggle(
-                    parseResult.GetValue(refArgument)!,
+                    GetRequiredValue(parseResult, refArgument),
                     parseResult.GetValue(onOption),
                     parseResult.GetValue(offOption),
                     parseResult.GetValue(timeoutOption)
@@ -433,7 +447,9 @@ public static class CommandTree
             parseResult => new ScrollRequest
             {
                 Ref = parseResult.GetValue(refArgument),
-                Direction = RequestBuilder.ParseDirection(parseResult.GetValue(directionArgument)!),
+                Direction = RequestBuilder.ParseDirection(
+                    GetRequiredValue(parseResult, directionArgument)
+                ),
                 Amount = parseResult.GetValue(amountOption),
                 TimeoutMs = parseResult.GetValue(timeoutOption),
             }
@@ -495,7 +511,7 @@ public static class CommandTree
             command,
             parseResult => new ScreenshotRequest
             {
-                OutputPath = Path.GetFullPath(parseResult.GetValue(outputArgument)!),
+                OutputPath = Path.GetFullPath(GetRequiredValue(parseResult, outputArgument)),
                 Ref = parseResult.GetValue(refOption),
             }
         );
@@ -522,7 +538,9 @@ public static class CommandTree
             command,
             parseResult => new WindowActionRequest
             {
-                Action = RequestBuilder.ParseWindowAction(parseResult.GetValue(actionArgument)!),
+                Action = RequestBuilder.ParseWindowAction(
+                    GetRequiredValue(parseResult, actionArgument)
+                ),
                 X = parseResult.GetValue(xOption),
                 Y = parseResult.GetValue(yOption),
                 Width = parseResult.GetValue(widthOption),

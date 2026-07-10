@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using AgentWindows.Automation.Input;
 using AgentWindows.Automation.Snapshots;
@@ -13,10 +12,7 @@ using AgentWindows.Core.Windows;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Capturing;
-using FlaUI.Core.Conditions;
 using FlaUI.Core.Definitions;
-using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
 
 namespace AgentWindows.Automation.Session;
@@ -114,119 +110,40 @@ public sealed class FlaUiSession : IAutomationSession
     )
     {
         ArgumentNullException.ThrowIfNull(target);
-        var mouseButton = ToMouseButton(button);
         if (target.ElementRef is null)
         {
-            Mouse.Position = new System.Drawing.Point(target.X ?? 0, target.Y ?? 0);
-            ClickCurrentPosition(mouseButton, doubleClick);
+            FlaUiElementActions.ClickAt(target.X ?? 0, target.Y ?? 0, button, doubleClick);
             return;
         }
 
         var element = Resolve(target.ElementRef);
-        WaitUntilActionable(element, target.ElementRef, timeout);
-        Mouse.Position = GetClickablePoint(element, target.ElementRef);
-        ClickCurrentPosition(mouseButton, doubleClick);
+        FlaUiElementActions.Click(element, target.ElementRef, button, doubleClick, timeout);
     }
 
     public void Fill(string elementRef, string text, TimeSpan timeout)
     {
         var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
-        var valuePattern = element.Patterns.Value.PatternOrDefault;
-        if (valuePattern is not null && !valuePattern.IsReadOnly.ValueOrDefault)
-        {
-            valuePattern.SetValue(text);
-            return;
-        }
-
-        element.Focus();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL, VirtualKeyShort.KEY_A);
-        Keyboard.Type(text);
+        FlaUiElementActions.Fill(element, elementRef, text, timeout);
     }
 
-    public void Press(KeyGesture gesture)
-    {
-        ArgumentNullException.ThrowIfNull(gesture);
-        var modifiers = gesture.Modifiers.Select(KeyMapper.ToVirtualKey).ToArray();
-        if (KeyMapper.TryMapKey(gesture.Key, out var key))
-        {
-            if (modifiers.Length > 0)
-            {
-                using (Keyboard.Pressing(modifiers))
-                {
-                    Keyboard.Type(key);
-                }
-            }
-            else
-            {
-                Keyboard.Type(key);
-            }
-
-            return;
-        }
-
-        if (modifiers.Length == 0 && gesture.Key.Length == 1)
-        {
-            Keyboard.Type(gesture.Key);
-            return;
-        }
-
-        throw new AutomationException(
-            ErrorCodes.BadRequest,
-            $"Unknown key '{gesture.Key}'. Use a named key (e.g. Enter, F5, PageDown) "
-                + "or a single character."
-        );
-    }
+    public void Press(KeyChord chord) => FlaUiElementActions.Press(chord);
 
     public void SelectItem(string elementRef, string item, TimeSpan timeout)
     {
         var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
-        try
-        {
-            SelectItemCore(element, item);
-        }
-        catch (InvalidOperationException ex)
-        {
-            throw new AutomationException(
-                ErrorCodes.NotFound,
-                $"No item '{item}' found in {ElementRef.Display(elementRef)}: {ex.Message}",
-                ex
-            );
-        }
+        FlaUiElementActions.SelectItem(element, elementRef, item, timeout);
     }
 
     public void Expand(string elementRef, bool collapse, TimeSpan timeout)
     {
         var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
-        var pattern =
-            element.Patterns.ExpandCollapse.PatternOrDefault
-            ?? throw PatternUnsupported(elementRef, "ExpandCollapse");
-        if (collapse)
-        {
-            pattern.Collapse();
-        }
-        else
-        {
-            pattern.Expand();
-        }
+        FlaUiElementActions.Expand(element, elementRef, collapse, timeout);
     }
 
     public void Toggle(string elementRef, bool? desiredState, TimeSpan timeout)
     {
         var element = Resolve(elementRef);
-        WaitUntilActionable(element, elementRef, timeout);
-        var pattern =
-            element.Patterns.Toggle.PatternOrDefault
-            ?? throw PatternUnsupported(elementRef, "Toggle");
-        var isOn = pattern.ToggleState.ValueOrDefault == ToggleState.On;
-        if (desiredState is { } desired && desired == isOn)
-        {
-            return;
-        }
-
-        pattern.Toggle();
+        FlaUiElementActions.Toggle(element, elementRef, desiredState, timeout);
     }
 
     public void Scroll(
@@ -239,15 +156,10 @@ public sealed class FlaUiSession : IAutomationSession
         var element = elementRef is null ? RequireTarget() : Resolve(elementRef);
         if (elementRef is not null)
         {
-            WaitUntilActionable(element, elementRef, timeout);
+            FlaUiElementActions.WaitUntilActionable(element, elementRef, timeout);
         }
 
-        if (TryPatternScroll(element, direction, amount))
-        {
-            return;
-        }
-
-        WheelScroll(element, direction, amount);
+        FlaUiElementActions.Scroll(element, direction, amount);
     }
 
     public void WaitFor(string? elementRef, string? text, bool untilGone, TimeSpan timeout)
@@ -255,25 +167,19 @@ public sealed class FlaUiSession : IAutomationSession
         if (elementRef is not null)
         {
             var element = Resolve(elementRef);
-            var display = ElementRef.Display(elementRef);
-            Poller.WaitUntil(
-                () => IsActionable(element) != untilGone,
-                timeout,
-                untilGone
-                    ? $"{display} was still present after {timeout.TotalSeconds:0}s."
-                    : $"{display} did not become interactable within {timeout.TotalSeconds:0}s."
-            );
+            FlaUiElementActions.WaitForElement(element, elementRef, untilGone, timeout);
             return;
         }
 
-        var target = RequireTarget();
-        Poller.WaitUntil(
-            () => ContainsText(target, text!) != untilGone,
-            timeout,
-            untilGone
-                ? $"Text '{text}' was still present after {timeout.TotalSeconds:0}s."
-                : $"Text '{text}' did not appear within {timeout.TotalSeconds:0}s."
-        );
+        if (text is null)
+        {
+            throw new AutomationException(
+                ErrorCodes.BadRequest,
+                "Wait requires either an element ref or text."
+            );
+        }
+
+        FlaUiElementActions.WaitForText(RequireTarget(), text, untilGone, timeout);
     }
 
     public string CaptureScreenshot(string? elementRef, string outputPath)
@@ -355,172 +261,6 @@ public sealed class FlaUiSession : IAutomationSession
         _automation.Dispose();
     }
 
-    private static void ClickCurrentPosition(MouseButton button, bool doubleClick)
-    {
-        if (doubleClick)
-        {
-            Mouse.DoubleClick(button);
-        }
-        else
-        {
-            Mouse.Click(button);
-        }
-    }
-
-    private static MouseButton ToMouseButton(MouseButtonKind kind) =>
-        kind switch
-        {
-            MouseButtonKind.Left => MouseButton.Left,
-            MouseButtonKind.Right => MouseButton.Right,
-            MouseButtonKind.Middle => MouseButton.Middle,
-            _ => MouseButton.Left,
-        };
-
-    private static void SelectItemCore(AutomationElement element, string item)
-    {
-        var controlType = element.Properties.ControlType.ValueOrDefault;
-        if (controlType == ControlType.ComboBox)
-        {
-            element.AsComboBox().Select(item);
-        }
-        else if (controlType == ControlType.List)
-        {
-            element.AsListBox().Select(item);
-        }
-        else if (controlType == ControlType.Tab)
-        {
-            element.AsTab().SelectTabItem(item);
-        }
-        else
-        {
-            SelectDescendantByName(element, item);
-        }
-    }
-
-    private static void SelectDescendantByName(AutomationElement element, string item)
-    {
-        var match =
-            element.FindFirstDescendant(cf => cf.ByName(item))
-            ?? throw new AutomationException(
-                ErrorCodes.NotFound,
-                $"No descendant named '{item}' found."
-            );
-        var pattern =
-            match.Patterns.SelectionItem.PatternOrDefault
-            ?? throw new AutomationException(
-                ErrorCodes.PatternUnsupported,
-                $"'{item}' does not support selection."
-            );
-        pattern.Select();
-    }
-
-    private static bool TryPatternScroll(
-        AutomationElement element,
-        ScrollDirection direction,
-        double amount
-    )
-    {
-        var pattern = element.Patterns.Scroll.PatternOrDefault;
-        if (pattern is null)
-        {
-            return false;
-        }
-
-        var vertical = direction is ScrollDirection.Up or ScrollDirection.Down;
-        var scrollable = vertical
-            ? pattern.VerticallyScrollable.ValueOrDefault
-            : pattern.HorizontallyScrollable.ValueOrDefault;
-        if (!scrollable)
-        {
-            return false;
-        }
-
-        var scrollAmount = direction switch
-        {
-            ScrollDirection.Up => ScrollAmount.SmallDecrement,
-            ScrollDirection.Left => ScrollAmount.SmallDecrement,
-            ScrollDirection.Down => ScrollAmount.SmallIncrement,
-            ScrollDirection.Right => ScrollAmount.SmallIncrement,
-            _ => ScrollAmount.SmallIncrement,
-        };
-        var steps = Math.Max(1, (int)Math.Round(amount));
-        for (var i = 0; i < steps; i++)
-        {
-            if (vertical)
-            {
-                pattern.Scroll(ScrollAmount.NoAmount, scrollAmount);
-            }
-            else
-            {
-                pattern.Scroll(scrollAmount, ScrollAmount.NoAmount);
-            }
-        }
-
-        return true;
-    }
-
-    private static void WheelScroll(
-        AutomationElement element,
-        ScrollDirection direction,
-        double amount
-    )
-    {
-        var rect = element.Properties.BoundingRectangle.ValueOrDefault;
-        if (!rect.IsEmpty)
-        {
-            Mouse.Position = RectConversions.Center(rect);
-        }
-
-        if (direction == ScrollDirection.Up)
-        {
-            Mouse.Scroll(amount);
-        }
-        else if (direction == ScrollDirection.Down)
-        {
-            Mouse.Scroll(-amount);
-        }
-        else if (direction == ScrollDirection.Left)
-        {
-            Mouse.HorizontalScroll(-amount);
-        }
-        else
-        {
-            Mouse.HorizontalScroll(amount);
-        }
-    }
-
-    private static bool ContainsText(AutomationElement root, string text)
-    {
-        // One bulk cross-process fetch of every descendant name per poll tick,
-        // instead of one COM round-trip per element.
-        var cacheRequest = new CacheRequest
-        {
-            TreeScope = TreeScope.Subtree,
-            TreeFilter = TrueCondition.Default,
-            AutomationElementMode = AutomationElementMode.None,
-        };
-        cacheRequest.Add(root.Automation.PropertyLibrary.Element.Name);
-        try
-        {
-            using (cacheRequest.Activate())
-            {
-                var descendants = root.FindAllDescendants();
-                return Array.Exists(
-                    descendants,
-                    d =>
-                        d.Properties.Name.ValueOrDefault?.Contains(
-                            text,
-                            StringComparison.OrdinalIgnoreCase
-                        ) == true
-                );
-            }
-        }
-        catch (COMException)
-        {
-            return false;
-        }
-    }
-
     private static bool IsAvailable(AutomationElement element)
     {
         try
@@ -533,56 +273,6 @@ public sealed class FlaUiSession : IAutomationSession
             return false;
         }
     }
-
-    private static bool IsActionable(AutomationElement element)
-    {
-        try
-        {
-            return element.Properties.IsEnabled.ValueOrDefault
-                && !element.Properties.IsOffscreen.ValueOrDefault;
-        }
-        catch (COMException)
-        {
-            return false;
-        }
-    }
-
-    private static void WaitUntilActionable(
-        AutomationElement element,
-        string elementRef,
-        TimeSpan timeout
-    ) =>
-        Poller.WaitUntil(
-            () => IsActionable(element),
-            timeout,
-            $"{ElementRef.Display(elementRef)} did not become enabled and on-screen within "
-                + $"{timeout.TotalSeconds:0}s."
-        );
-
-    private static System.Drawing.Point GetClickablePoint(
-        AutomationElement element,
-        string elementRef
-    )
-    {
-        if (element.TryGetClickablePoint(out var point))
-        {
-            return point;
-        }
-
-        var rect = element.Properties.BoundingRectangle.ValueOrDefault;
-        return rect.IsEmpty
-            ? throw new AutomationException(
-                ErrorCodes.InternalError,
-                $"{ElementRef.Display(elementRef)} has no clickable point or bounds."
-            )
-            : RectConversions.Center(rect);
-    }
-
-    private static AutomationException PatternUnsupported(string elementRef, string pattern) =>
-        new(
-            ErrorCodes.PatternUnsupported,
-            $"{ElementRef.Display(elementRef)} does not support the {pattern} pattern."
-        );
 
     private static FlaUI.Core.Patterns.ITransformPattern RequireTransform(Window window) =>
         window.Patterns.Transform.PatternOrDefault
