@@ -23,11 +23,12 @@ function Write-Section {
 function Invoke-External {
     param(
         [Parameter(Mandatory)][string] $FilePath,
-        [Parameter()][string[]] $ArgumentList = @()
+        [Parameter()][string[]] $ArgumentList = @(),
+        [Parameter()][int[]] $SuccessExitCodes = @(0)
     )
 
     & $FilePath @ArgumentList
-    if ($LASTEXITCODE -ne 0) {
+    if ($LASTEXITCODE -notin $SuccessExitCodes) {
         throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
     }
 }
@@ -141,7 +142,8 @@ function Update-NuGetPackages {
             $arguments += "--vulnerable"
         }
 
-        Invoke-External dotnet $arguments
+        # The .NET 10 command returns 2 when a project has nothing to update.
+        Invoke-External dotnet $arguments -SuccessExitCodes @(0, 2)
     }
 }
 
