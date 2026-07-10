@@ -14,12 +14,12 @@ internal static class Program
                 options.Target,
                 "candidate"
             );
-            await candidate.StartAsync().ConfigureAwait(false);
+            var targetProcessId = await candidate.StartAsync().ConfigureAwait(false);
             CliEndpoint? reference = null;
             if (options.Reference is not null)
             {
                 reference = new CliEndpoint(options.Reference, options.Target, "reference");
-                await reference.StartAsync().ConfigureAwait(false);
+                await reference.StartAsync(targetProcessId).ConfigureAwait(false);
             }
 
             try
@@ -30,6 +30,13 @@ internal static class Program
                     options.Warmups,
                     options.Samples
                 );
+                if (options.PreflightOnly)
+                {
+                    await runner.PreflightAsync().ConfigureAwait(false);
+                    Console.WriteLine("Performance preflight passed.");
+                    return 0;
+                }
+
                 var results = await runner.RunAsync().ConfigureAwait(false);
                 var run = new BenchmarkRun
                 {
@@ -94,15 +101,24 @@ internal static class Program
 
         public required int Samples { get; init; }
 
+        public required bool PreflightOnly { get; init; }
+
         public static Arguments Parse(IReadOnlyList<string> args)
         {
             var values = new Dictionary<string, string>(StringComparer.Ordinal);
             var quick = false;
+            var preflightOnly = false;
             for (var index = 0; index < args.Count; index++)
             {
                 if (args[index] == "--quick")
                 {
                     quick = true;
+                    continue;
+                }
+
+                if (args[index] == "--preflight-only")
+                {
+                    preflightOnly = true;
                     continue;
                 }
 
@@ -129,6 +145,7 @@ internal static class Program
                 SuiteVersion = Optional(values, "--suite-version") ?? "v1",
                 Warmups = ParseInt(values, "--warmups", quick ? 2 : 5),
                 Samples = ParseInt(values, "--samples", quick ? 5 : 30),
+                PreflightOnly = preflightOnly,
             };
         }
 

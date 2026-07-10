@@ -535,7 +535,6 @@ public sealed class FlaUiSession : IAutomationSession
                 pattern.Scroll(scrollAmount, ScrollAmount.NoAmount);
             }
         }
-
     }
 
     private static void WheelScroll(

@@ -254,6 +254,22 @@
         {
           "properties": {
             "kind": {
+              "const": "find"
+            },
+            "matches": {
+              "type": "array",
+              "items": {
+                "$ref": "#/properties/payload/anyOf/2/properties/root/properties/children/items"
+              }
+            }
+          },
+          "required": [
+            "matches"
+          ]
+        },
+        {
+          "properties": {
+            "kind": {
               "const": "screenshot"
             },
             "path": {

@@ -72,11 +72,131 @@
             "null"
           ]
         },
+        "view": {
+          "enum": [
+            "Raw",
+            "Control"
+          ]
+        },
         "scopeRef": {
           "type": [
             "string",
             "null"
           ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "find"
+        },
+        "selector": {
+          "type": "object",
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
+        },
+        "all": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "selector"
+      ]
+    },
+    {
+      "properties": {
+        "cmd": {
+          "const": "activate"
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
+        },
+        "timeoutMs": {
+          "type": "integer"
         }
       }
     },
@@ -90,6 +210,50 @@
             "string",
             "null"
           ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "x": {
           "type": [
@@ -124,7 +288,54 @@
           "const": "fill"
         },
         "ref": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "text": {
           "type": "string"
@@ -134,7 +345,6 @@
         }
       },
       "required": [
-        "ref",
         "text"
       ]
     },
@@ -157,7 +367,54 @@
           "const": "select"
         },
         "ref": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "item": {
           "type": "string"
@@ -167,7 +424,6 @@
         }
       },
       "required": [
-        "ref",
         "item"
       ]
     },
@@ -177,7 +433,54 @@
           "const": "expand"
         },
         "ref": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "collapse": {
           "type": "boolean"
@@ -185,10 +488,7 @@
         "timeoutMs": {
           "type": "integer"
         }
-      },
-      "required": [
-        "ref"
-      ]
+      }
     },
     {
       "properties": {
@@ -196,7 +496,54 @@
           "const": "toggle"
         },
         "ref": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "state": {
           "type": [
@@ -207,10 +554,7 @@
         "timeoutMs": {
           "type": "integer"
         }
-      },
-      "required": [
-        "ref"
-      ]
+      }
     },
     {
       "properties": {
@@ -222,6 +566,50 @@
             "string",
             "null"
           ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "direction": {
           "enum": [
@@ -252,6 +640,50 @@
             "string",
             "null"
           ]
+        },
+        "selector": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "automationId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nameContains": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "role": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scopeRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requireUnique": {
+              "type": "boolean"
+            },
+            "isEmpty": {
+              "type": "boolean"
+            }
+          }
         },
         "text": {
           "type": [

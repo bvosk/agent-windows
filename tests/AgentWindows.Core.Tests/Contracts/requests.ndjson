@@ -1,7 +1,7 @@
 {"cmd":"list"}
 {"cmd":"launch","path":"notepad.exe","arguments":"file.txt","timeoutMs":10000}
 {"cmd":"attach","title":"Calc"}
-{"cmd":"snapshot","interactiveOnly":true,"maxDepth":5}
+{"cmd":"snapshot","interactiveOnly":true,"maxDepth":5,"view":"Raw"}
 {"cmd":"click","ref":"e2","button":"left","doubleClick":true,"timeoutMs":10000}
 {"cmd":"fill","ref":"e3","text":"hello","timeoutMs":10000}
 {"cmd":"press","keys":"Enter"}
