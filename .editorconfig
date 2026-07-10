@@ -178,6 +178,10 @@ dotnet_style_prefer_simplified_boolean_expressions = true:error
 # Collection expressions (C# 12+)
 dotnet_style_prefer_collection_expression = true:error
 
+# LibraryImport callbacks intentionally use the function-pointer pattern recommended for native interop.
+[src/AgentWindows.Automation/Win32WindowEnumerator.cs]
+dotnet_diagnostic.S6640.severity = none
+
 # Test project specific rules
 [tests/**/*.cs]
 # Allow underscores in test method names (standard convention: Method_Scenario_Expected)
