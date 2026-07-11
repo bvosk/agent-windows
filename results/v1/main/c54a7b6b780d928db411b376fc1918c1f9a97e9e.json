@@ -1,0 +1,12 @@
+{
+  "candidateSha": "c54a7b6b780d928db411b376fc1918c1f9a97e9e",
+  "status": "preflight-failed",
+  "referenceSha": "850de360d6e36dd7d3001bc500a9cbcce44e97ac",
+  "timestamp": "2026-07-11T03:49:16.360192+00:00",
+  "reason": "benchmark-command-or-correctness-check-failed",
+  "retries": 0,
+  "suiteVersion": "v1",
+  "context": "main",
+  "terminal": true,
+  "schemaVersion": 1
+}

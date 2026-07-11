@@ -1,0 +1,12 @@
+{
+  "context": "main",
+  "referenceSha": "850de360d6e36dd7d3001bc500a9cbcce44e97ac",
+  "terminal": true,
+  "reason": "setup-or-build-failure",
+  "candidateSha": "195b3985787e515e12a525c41b3c04bf26482a5e",
+  "timestamp": "2026-07-11T03:49:46.3168338+00:00",
+  "schemaVersion": 1,
+  "retries": 0,
+  "status": "failed",
+  "suiteVersion": "v1"
+}

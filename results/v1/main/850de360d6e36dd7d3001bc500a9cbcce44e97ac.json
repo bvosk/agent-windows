@@ -1,0 +1,12 @@
+{
+  "status": "preflight-failed",
+  "retries": 0,
+  "timestamp": "2026-07-11T03:49:21.9256421+00:00",
+  "candidateSha": "850de360d6e36dd7d3001bc500a9cbcce44e97ac",
+  "reason": "benchmark-command-or-correctness-check-failed",
+  "terminal": true,
+  "suiteVersion": "v1",
+  "context": "main",
+  "referenceSha": "850de360d6e36dd7d3001bc500a9cbcce44e97ac",
+  "schemaVersion": 1
+}
